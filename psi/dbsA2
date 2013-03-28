@@ -1,0 +1,3 @@
+#!/bin/bash
+python $DBSCMD_HOME/dbsCommandLine.py --url='http://cmsdbsprod.cern.ch/cms_dbs_ph_analysis_02/servlet/DBSServlet' -c "$@"
+
