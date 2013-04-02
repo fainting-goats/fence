@@ -3,6 +3,7 @@ from ginger.analysis import TreeAnalyser,Cut,CutFlow,Latino,Sample
 import HWWAnalysis.Misc.odict as odict
 from hwwinfo2g import wwnamedcuts as wwcuts
 from ginger.painter import Canvas,Pad,Legend
+import sys
 
 # orchard = '/shome/mtakahashi/HWW/Tree/ShapeAna/53x_195fb/tree_skim_wwmin/'
 # orchard = '/shome/thea/HWW/work/shapeMoriond/trees/dileptons'
@@ -77,16 +78,30 @@ def main( opt ):
 
     # ---
     # variables
-    jetptbins = range(10,30,2)+range(30, 100, 5)+range(100, 201, 20)
+    softjet_ptbins = range(10,  30, 2) + range( 30, 100, 5) + range(100, 201, 20)
+    jet_ptbins     =                     range( 30, 100, 5) + range(100, 201, 20)
+    
 
     # block A: control plots for the standard estimate
     vars = {
 #         'mll_1j'        : ('mll'           , 'njet >= 1', (100,  0, 600) , 'm_{ll} [GeV]' ),
 #         'tche2_1j'      : ('jettche2'      , 'njet >= 1', ( 40,-20,  20) , 'TCHE_{j2}' ),
-        '1j_jetpt2_uni' : ('jetpt2'        , 'njet >= 1', ( jetptbins, ) , 'pt_{j2}' ) ,
-        '1j_jetpt2'     : ('jetpt2'        , 'njet >= 1', ( jetptbins, ) , 'pt_{j2}' ) ,
-        '1j_jeteta2'    : ('fabs(jeteta2)' , 'njet == 1', ( 12,  0,  3 ) , 'eta_{j2}' ),
+        '1j_jetpt2_full'    : ('jetpt2'        , 'njet >= 1' ,  ( softjet_ptbins, ) , 'pt_{j2}' ) ,
+        '1j_jetpt2'         : ('jetpt2'        , 'njet == 1' ,  ( 10, 10, 30 )      , 'pt_{j2}' ) ,
+        '1j_jeteta2'        : ('fabs(jeteta2)' , 'njet == 1' ,  ( 12,  0,  3 )      , '#eta_{j2}' ),
+        '1j_jeteta2_bins'   : ('fabs(jeteta2)' , 'njet == 1' ,  ( [0.,1.,2.,2.8], ) , '#eta_{j2}' ),
 
+        '2j_jetpt2'         : ('jetpt2'        , 'njet == 2' ,  ( jet_ptbins, )     , 'pt_{j2}' ) ,
+        '2j_jeteta2'        : ('fabs(jeteta2)' , 'njet == 2' ,  ( 12,  0,  3 )      , '#eta_{j2}' ),
+        '2j_jeteta2_bins'   : ('fabs(jeteta2)' , 'njet == 2' ,  ( [0.,1.,2.,2.8], ) , '#eta_{j2}' ),
+
+        '1j_jetpt2_jeteta2_b0' : ('jetpt2' , 'njet == 1 && fabs(jeteta2) < 1'                        ,  ( 10, 10, 30 ) , 'pt_{j2}' ) ,
+        '1j_jetpt2_jeteta2_b1' : ('jetpt2' , 'njet == 1 && fabs(jeteta2) >=1 && fabs(jeteta2) < 2  ' ,  ( 10, 10, 30 ) , 'pt_{j2}' ) ,
+        '1j_jetpt2_jeteta2_b2' : ('jetpt2' , 'njet == 1 && fabs(jeteta2) >=2 && fabs(jeteta2) < 2.8' ,  ( 10, 10, 30 ) , 'pt_{j2}' ) ,
+        
+        '2j_jetpt2_jeteta2_b0' : ('jetpt2' , 'njet == 2 && fabs(jeteta2) < 1'                        ,  ( jet_ptbins, ) , 'pt_{j2}' ) ,
+        '2j_jetpt2_jeteta2_b1' : ('jetpt2' , 'njet == 2 && fabs(jeteta2) >=1 && fabs(jeteta2) < 2  ' ,  ( jet_ptbins, ) , 'pt_{j2}' ) ,
+        '2j_jetpt2_jeteta2_b2' : ('jetpt2' , 'njet == 2 && fabs(jeteta2) >=2 && fabs(jeteta2) < 2.8' ,  ( jet_ptbins, ) , 'pt_{j2}' ) ,
     }
 
     prefix=''
@@ -98,14 +113,18 @@ def main( opt ):
     bplots = AlienDict()
 
     for v,(expr,cut,bins,xaxis) in vars.iteritems():
+        print '%-30s: [' % v,
         for n,a in analysers.iteritems():
-            print v,':',n,
+#             print v,':',n,
+            print '%s,' % n,
 
             pf = a.plotsflow(n+'_'+v,expr,extra=cut,bins=bins)
-            print '...done'
+#             print '...done'
+            sys.stdout.flush()
 
             for c,h in pf.iteritems():
                 bplots[v][c][n] = h
+        print ']'
 
     bplots.lock()
 
@@ -150,6 +169,8 @@ def main( opt ):
         'jet_1j_bveto_jetpt1'       : ('jetpt1'        , 'bveto-mu' ,  'bveto_ip&& njet == 1 && jettche1 <= 2.1'                    , ( 34, 30, 200 ) , 'pt_{j1}' ) ,
     }
 
+    vars = {}
+
     xplots = AlienDict()
     for v,(expr,lvl,cut,bins,xaxis) in vars.iteritems():
         for n,a in analysers.iteritems():
@@ -172,105 +193,271 @@ def main( opt ):
     markers = [ROOT.kFullCircle , ROOT.kFullCircle]
 
     # ---
-    # by ptj2
-    if '1j_jetpt2' in bplots:
-        ptj2_bctrl = bplots['1j_jetpt2']['bctrl']
-        ptj2_btag  = bplots['1j_jetpt2']['btag']
+    def sumplots( plots, newname, processes ):
+        if not processes: return None
 
-        ptj2_bctrl_ds = ptj2_bctrl['Data'].Clone('ptj2_bctrl_ds')
-        for p in others:  ptj2_bctrl_ds -= ptj2_bctrl[p]
+        hnew = plots[processes[0]].Clone(newname)
+        for p in processes[1:]: hnew += plots[p]
+        
 
-        ptj2_btag_ds  = ptj2_btag['Data'].Clone('ptj2_btag_ds')
-        for p in others:  ptj2_btag_ds  -= ptj2_btag[p]
+    # ---
+    def makeefficiency( bplots, x, xshort, xlabel, cat, scalemax, legalign, lumi ):
 
-        heff_ds_ptj2 = ptj2_btag_ds.Clone('heff_ds_ptj2')
-        heff_ds_ptj2.Divide(ptj2_btag_ds,ptj2_bctrl_ds,1,1,'b')
-        heff_ds_ptj2.SetTitle('data - mc_{others}')
+        x_bctrl = bplots[x]['bctrl']
+        x_btag  = bplots[x]['btag']
 
-        heff_mc_ptj2 = ptj2_btag['Top'].Clone('heff_mc_ptj2')
-        heff_mc_ptj2.Divide(ptj2_btag['Top'],ptj2_bctrl['Top'],1,1,'b')
-        heff_mc_ptj2.SetTitle('mc (tW/t#bar{t});pt_{j2};tag/ctrl')
+        x_bctrl_ds = x_bctrl['Data'].Clone('bctrl_%s_ds' % x)
+        for p in others:  x_bctrl_ds -= x_bctrl[p]
+
+        x_btag_ds  = x_btag['Data'].Clone('btag_%s_ds' % x)
+        for p in others:  x_btag_ds  -= x_btag[p]
+
+        heff_ds_x = x_btag_ds.Clone('heff_ds_%s' % x)
+        heff_ds_x.Divide(x_btag_ds,x_bctrl_ds,1,1,'b')
+        heff_ds_x.SetTitle('data - mc_{others}')
+
+        heff_mc_x = x_btag['Top'].Clone('heff_mc_%s' % x)
+
+#         heff_mc_x = sumplots(x_btag, 'heff_mc_x', tops)
+
+        heff_mc_x.Divide(x_btag['Top'],x_bctrl['Top'],1,1,'b')
+        heff_mc_x.SetTitle('mc (tW/t#bar{t});%s;tag/ctrl' % xlabel)
 
 
-        hratio_pt2j = H1RatioPlotter(colors=colors,markers=markers)
-        hratio_pt2j.scalemax = 1.1
-        hratio_pt2j.legalign = ('r','b')
-        hratio_pt2j.ltitle = 'top tag efficiency'
-        hratio_pt2j.rtitle = 'L=%.2f fb^{-1}' % opt.lumi
-        hratio_pt2j.ytitle2 = 'data/mc'
-        hratio_pt2j.set(heff_mc_ptj2, heff_ds_ptj2)
-        c = hratio_pt2j.plot()
+        hratio = H1RatioPlotter(colors=colors,markers=markers)
+        hratio.scalemax = scalemax
+        hratio.legalign = legalign
+        hratio.ltitle   = 'top tag efficiency (%s)' % cat
+        hratio.rtitle   = 'L=%.2f fb^{-1}' % lumi
+        hratio.ytitle2  = 'data/mc'
+        hratio.set(heff_mc_x, heff_ds_x)
+        c = hratio.plot()
         
         for ext in imgext:
-            c.Print(prefix+'heff_ptj2.'+ext)
-        
-        del c
-        hratio_pt2j.userrange = (10.,30-0.01)
-        hratio_pt2j.scalemax  = 0.6
-        c = hratio_pt2j.plot()
+            c.Print(prefix+'heff_%s_%s.%s' % (cat,xshort,ext) )
 
-        for ext in imgext:
-            c.Print(prefix+'heff_ptj2_zoom.'+ext)
+        return hratio
+
+        # to check
+#         trans_ds_pt2j  = heff_ds_ptj2.Clone('htrans_ds_ptj2')
+#         trans_mc_pt2j  = heff_mc_ptj2.Clone('htrans_mc_ptj2')
+
+#         for i in xrange(0,trans_mc_pt2j.GetNbinsX()+2):
+#             e  = trans_ds_pt2j.GetBinContent(i)
+#             ee = trans_ds_pt2j.GetBinError(i)
+#             trans_ds_pt2j.SetBinContent(i,(1-e)/e)
+#             trans_ds_pt2j.SetBinError(i,ee/e**2)
+#             e = trans_mc_pt2j.GetBinContent(i)
+#             ee = trans_ds_pt2j.GetBinError(i)
+#             trans_mc_pt2j.SetBinContent(i,(1-e)/e)
+#             trans_mc_pt2j.SetBinError(i,ee/e**2)
+
+#         htrans_pt2j = H1RatioPlotter(colors=colors,markers=markers)
+#         htrans_pt2j.scalemax = 2
+#         htrans_pt2j.legalign = ('r','t')
+#         htrans_pt2j.ltitle = 'transfer factor'
+#         hratio_pt2j.rtitle = 'L=%.2f fb^{-1}' % opt.lumi
+#         htrans_pt2j.ytitle2 = 'data/mc'
+#         htrans_pt2j.set(trans_mc_pt2j, trans_ds_pt2j)
+#         htrans_pt2j.userrange = (10.,30-0.01)
+
+#         c = htrans_pt2j.plot()
+#         for ext in imgext:
+#             c.Print(prefix+'htrans_ptj2_zoom.'+ext)
+
+
+
+    makeefficiency( bplots , '1j_jetpt2_full'       , 'pt-full' , 'pt_{j2}'   , '0j'        , 1.1 , ('l','t') , opt.lumi )
+    makeefficiency( bplots , '1j_jetpt2'            , 'pt'      , 'pt_{j2}'   , '0j'        , 1.1 , ('l','t') , opt.lumi )
+    makeefficiency( bplots , '1j_jeteta2'           , 'eta'     , '#eta_{j2}' , '0j'        , 1.3 , ('r','t') , opt.lumi )
+    makeefficiency( bplots , '1j_jeteta2_bins'      , 'eta-big' , '#eta_{j2}' , '0j'        , 1.3 , ('r','t') , opt.lumi )
+
+    makeefficiency( bplots , '1j_jetpt2_jeteta2_b0' , 'pt'      , 'pt_{j2}'   , '0j_eta-b0' , 1.1 , ('l','t') , opt.lumi )
+    makeefficiency( bplots , '1j_jetpt2_jeteta2_b1' , 'pt'      , 'pt_{j2}'   , '0j_eta-b1' , 1.1 , ('l','t') , opt.lumi )
+    makeefficiency( bplots , '1j_jetpt2_jeteta2_b2' , 'pt'      , 'pt_{j2}'   , '0j_eta-b2' , 1.3 , ('l','t') , opt.lumi )
+
+    makeefficiency( bplots , '2j_jetpt2'            , 'pt'      , 'pt_{j2}'   , '1j'        , 1.1 , ('r','t') , opt.lumi )
+    makeefficiency( bplots , '2j_jeteta2'           , 'eta'     , '#eta_{j2}' , '1j'        , 1.3 , ('r','t') , opt.lumi )
+    makeefficiency( bplots , '2j_jeteta2_bins'      , 'eta-big' , '#eta_{j2}' , '1j'        , 1.3 , ('r','t') , opt.lumi )
+
+    makeefficiency( bplots , '2j_jetpt2_jeteta2_b0' , 'pt'      , 'pt_{j2}'   , '1j_eta-b0' , 1.1 , ('l','t') , opt.lumi )
+    makeefficiency( bplots , '2j_jetpt2_jeteta2_b1' , 'pt'      , 'pt_{j2}'   , '1j_eta-b1' , 1.1 , ('l','t') , opt.lumi )
+    makeefficiency( bplots , '2j_jetpt2_jeteta2_b2' , 'pt'      , 'pt_{j2}'   , '1j_eta-b2' , 1.3 , ('l','t') , opt.lumi )
+#     return
+
+#     # ---
+#     # 0j by ptj1
+#     if '1j_jetpt2' in bplots:
+#         ptj2_bctrl = bplots['1j_jetpt2']['bctrl']
+#         ptj2_btag  = bplots['1j_jetpt2']['btag']
+
+#         ptj2_bctrl_ds = ptj2_bctrl['Data'].Clone('ptj2_bctrl_ds')
+#         for p in others:  ptj2_bctrl_ds -= ptj2_bctrl[p]
+
+#         ptj2_btag_ds  = ptj2_btag['Data'].Clone('ptj2_btag_ds')
+#         for p in others:  ptj2_btag_ds  -= ptj2_btag[p]
+
+#         heff_ds_ptj2 = ptj2_btag_ds.Clone('heff_ds_ptj2')
+#         heff_ds_ptj2.Divide(ptj2_btag_ds,ptj2_bctrl_ds,1,1,'b')
+#         heff_ds_ptj2.SetTitle('data - mc_{others}')
+
+#         heff_mc_ptj2 = ptj2_btag['Top'].Clone('heff_mc_ptj2')
+
+# #         heff_mc_ptj2 = sumplots(ptj2_btag, 'heff_mc_ptj2', tops)
+
+
+#         heff_mc_ptj2.Divide(ptj2_btag['Top'],ptj2_bctrl['Top'],1,1,'b')
+#         heff_mc_ptj2.SetTitle('mc (tW/t#bar{t});pt_{j2};tag/ctrl')
+
+
+#         hratio_pt2j = H1RatioPlotter(colors=colors,markers=markers)
+#         hratio_pt2j.scalemax = 1.1
+#         hratio_pt2j.legalign = ('r','b')
+#         hratio_pt2j.ltitle = 'top tag efficiency (0j)'
+#         hratio_pt2j.rtitle = 'L=%.2f fb^{-1}' % opt.lumi
+#         hratio_pt2j.ytitle2 = 'data/mc'
+#         hratio_pt2j.set(heff_mc_ptj2, heff_ds_ptj2)
+#         c = hratio_pt2j.plot()
+#         
+#         for ext in imgext:
+#             c.Print(prefix+'heff_0j_pt.'+ext)
+#         
+#         del c
+#         hratio_pt2j.userrange = (10.,30-0.01)
+#         hratio_pt2j.scalemax  = 0.6
+#         c = hratio_pt2j.plot()
+
+#         for ext in imgext:
+#             c.Print(prefix+'heff_0j_pt_zoom.'+ext)
          
 
-        trans_ds_pt2j  = heff_ds_ptj2.Clone('htrans_ds_ptj2')
-        trans_mc_pt2j  = heff_mc_ptj2.Clone('htrans_mc_ptj2')
+#         trans_ds_pt2j  = heff_ds_ptj2.Clone('htrans_ds_ptj2')
+#         trans_mc_pt2j  = heff_mc_ptj2.Clone('htrans_mc_ptj2')
 
-        for i in xrange(0,trans_mc_pt2j.GetNbinsX()+2):
-            e  = trans_ds_pt2j.GetBinContent(i)
-            ee = trans_ds_pt2j.GetBinError(i)
-            trans_ds_pt2j.SetBinContent(i,(1-e)/e)
-            trans_ds_pt2j.SetBinError(i,ee/e**2)
-            e = trans_mc_pt2j.GetBinContent(i)
-            ee = trans_ds_pt2j.GetBinError(i)
-            trans_mc_pt2j.SetBinContent(i,(1-e)/e)
-            trans_mc_pt2j.SetBinError(i,ee/e**2)
+#         for i in xrange(0,trans_mc_pt2j.GetNbinsX()+2):
+#             e  = trans_ds_pt2j.GetBinContent(i)
+#             ee = trans_ds_pt2j.GetBinError(i)
+#             trans_ds_pt2j.SetBinContent(i,(1-e)/e)
+#             trans_ds_pt2j.SetBinError(i,ee/e**2)
+#             e = trans_mc_pt2j.GetBinContent(i)
+#             ee = trans_ds_pt2j.GetBinError(i)
+#             trans_mc_pt2j.SetBinContent(i,(1-e)/e)
+#             trans_mc_pt2j.SetBinError(i,ee/e**2)
 
-        htrans_pt2j = H1RatioPlotter(colors=colors,markers=markers)
-        htrans_pt2j.scalemax = 2
-        htrans_pt2j.legalign = ('r','t')
-        htrans_pt2j.ltitle = 'transfer factor'
-        hratio_pt2j.rtitle = 'L=%.2f fb^{-1}' % opt.lumi
-        htrans_pt2j.ytitle2 = 'data/mc'
-        htrans_pt2j.set(trans_mc_pt2j, trans_ds_pt2j)
-        htrans_pt2j.userrange = (10.,30-0.01)
+#         htrans_pt2j = H1RatioPlotter(colors=colors,markers=markers)
+#         htrans_pt2j.scalemax = 2
+#         htrans_pt2j.legalign = ('r','t')
+#         htrans_pt2j.ltitle = 'transfer factor'
+#         hratio_pt2j.rtitle = 'L=%.2f fb^{-1}' % opt.lumi
+#         htrans_pt2j.ytitle2 = 'data/mc'
+#         htrans_pt2j.set(trans_mc_pt2j, trans_ds_pt2j)
+#         htrans_pt2j.userrange = (10.,30-0.01)
 
-        c = htrans_pt2j.plot()
-        for ext in imgext:
-            c.Print(prefix+'htrans_ptj2_zoom.'+ext)
+#         c = htrans_pt2j.plot()
+#         for ext in imgext:
+#             c.Print(prefix+'htrans_ptj2_zoom.'+ext)
     # ---
-    # by etaj2
-    if '1j_jeteta2' in bplots:
-        etaj2_bctrl = bplots['1j_jeteta2']['bctrl']
-        etaj2_btag  = bplots['1j_jeteta2']['btag']
+    # 0j by etaj1
+#     if '1j_jeteta2' in bplots:
+#         etaj2_bctrl = bplots['1j_jeteta2']['bctrl']
+#         etaj2_btag  = bplots['1j_jeteta2']['btag']
 
-        etaj2_bctrl_ds = etaj2_bctrl['Data'].Clone('etaj2_bctrl_ds')
-        for p in others:  etaj2_bctrl_ds -= etaj2_bctrl[p]
+#         etaj2_bctrl_ds = etaj2_bctrl['Data'].Clone('etaj2_bctrl_ds')
+#         for p in others:  etaj2_bctrl_ds -= etaj2_bctrl[p]
 
-        etaj2_btag_ds  = etaj2_btag['Data'].Clone('etaj2_btag_ds')
-        for p in others:  etaj2_btag_ds  -= etaj2_btag[p]
+#         etaj2_btag_ds  = etaj2_btag['Data'].Clone('etaj2_btag_ds')
+#         for p in others:  etaj2_btag_ds  -= etaj2_btag[p]
 
-        heff_ds_etaj2 = etaj2_btag_ds.Clone('heff_ds_etaj2')
-        heff_ds_etaj2.Divide(etaj2_btag_ds, etaj2_bctrl_ds,1,1,'b')
-        heff_ds_etaj2.SetTitle('data - mc_{others}')
+#         heff_ds_etaj2 = etaj2_btag_ds.Clone('heff_ds_etaj2')
+#         heff_ds_etaj2.Divide(etaj2_btag_ds, etaj2_bctrl_ds,1,1,'b')
+#         heff_ds_etaj2.SetTitle('data - mc_{others}')
 
-        heff_mc_etaj2 = etaj2_btag['Top'].Clone('heff_mc_etaj2')
-        heff_mc_etaj2.Divide(etaj2_btag['Top'],etaj2_bctrl['Top'],1,1,'b')
-        heff_mc_etaj2.SetTitle('mc (tW/t#bar{t});eta_{j2};tag/ctrl')
+#         heff_mc_etaj2 = etaj2_btag['Top'].Clone('heff_mc_etaj2')
+#         heff_mc_etaj2.Divide(etaj2_btag['Top'],etaj2_bctrl['Top'],1,1,'b')
+#         heff_mc_etaj2.SetTitle('mc (tW/t#bar{t});eta_{j2};tag/ctrl')
 
 
-        hratio_eta2j = H1RatioPlotter(colors=colors,markers=markers)
-        hratio_eta2j.scalemax = 1.2
-        hratio_eta2j.ltitle = 'top tag efficiency'
-        hratio_eta2j.rtitle = 'L=%.2f fb^{-1}' % opt.lumi
-        hratio_eta2j.ytitle2 = 'data/mc'
-        hratio_eta2j.legalign = ('r','t')
-        hratio_eta2j.set(heff_mc_etaj2, heff_ds_etaj2)
-        c = hratio_eta2j.plot()
-        
-        for ext in imgext:
-            c.Print(prefix+'heff_etaj2.'+ext)
-    
+#         hratio_eta2j = H1RatioPlotter(colors=colors,markers=markers)
+#         hratio_eta2j.scalemax = 1.2
+#         hratio_eta2j.ltitle = 'top tag efficiency (0j)'
+#         hratio_eta2j.rtitle = 'L=%.2f fb^{-1}' % opt.lumi
+#         hratio_eta2j.ytitle2 = 'data/mc'
+#         hratio_eta2j.legalign = ('r','t')
+#         hratio_eta2j.set(heff_mc_etaj2, heff_ds_etaj2)
+#         c = hratio_eta2j.plot()
+#         
+#         for ext in imgext:
+#             c.Print(prefix+'heff_0j_eta.'+ext)
+
+   # ---
+#     # 1j by ptj2
+#     if '2j_jetpt2' in bplots:
+#         ptj2_bctrl = bplots['2j_jetpt2']['bctrl']
+#         ptj2_btag  = bplots['2j_jetpt2']['btag']
+
+#         ptj2_bctrl_ds = ptj2_bctrl['Data'].Clone('ptj2_bctrl_ds')
+#         for p in others:  ptj2_bctrl_ds -= ptj2_bctrl[p]
+
+#         ptj2_btag_ds  = ptj2_btag['Data'].Clone('ptj2_btag_ds')
+#         for p in others:  ptj2_btag_ds  -= ptj2_btag[p]
+
+#         heff_ds_ptj2 = ptj2_btag_ds.Clone('heff_ds_ptj2')
+#         heff_ds_ptj2.Divide(ptj2_btag_ds,ptj2_bctrl_ds,1,1,'b')
+#         heff_ds_ptj2.SetTitle('data - mc_{others}')
+
+#         heff_mc_ptj2 = ptj2_btag['Top'].Clone('heff_mc_ptj2')
+
+# #         heff_mc_ptj2 = sumplots(ptj2_btag, 'heff_mc_ptj2', tops)
+
+
+#         heff_mc_ptj2.Divide(ptj2_btag['Top'],ptj2_bctrl['Top'],1,1,'b')
+#         heff_mc_ptj2.SetTitle('mc (tW/t#bar{t});pt_{j2};tag/ctrl')
+
+
+#         hratio_pt2j = H1RatioPlotter(colors=colors,markers=markers)
+#         hratio_pt2j.scalemax = 1.1
+#         hratio_pt2j.legalign = ('r','b')
+#         hratio_pt2j.ltitle = 'top tag efficiency'
+#         hratio_pt2j.rtitle = 'L=%.2f fb^{-1}' % opt.lumi
+#         hratio_pt2j.ytitle2 = 'data/mc'
+#         hratio_pt2j.set(heff_mc_ptj2, heff_ds_ptj2)
+#         c = hratio_pt2j.plot()
+#         
+#         for ext in imgext:
+#             c.Print(prefix+'heff_1j_pt.'+ext)
+#         
+#     # 1j by etaj2
+#     if '1j_jeteta2' in bplots:
+#         etaj2_bctrl = bplots['2j_jeteta2']['bctrl']
+#         etaj2_btag  = bplots['2j_jeteta2']['btag']
+
+#         etaj2_bctrl_ds = etaj2_bctrl['Data'].Clone('etaj2_bctrl_ds')
+#         for p in others:  etaj2_bctrl_ds -= etaj2_bctrl[p]
+
+#         etaj2_btag_ds  = etaj2_btag['Data'].Clone('etaj2_btag_ds')
+#         for p in others:  etaj2_btag_ds  -= etaj2_btag[p]
+
+#         heff_ds_etaj2 = etaj2_btag_ds.Clone('heff_ds_etaj2')
+#         heff_ds_etaj2.Divide(etaj2_btag_ds, etaj2_bctrl_ds,1,1,'b')
+#         heff_ds_etaj2.SetTitle('data - mc_{others}')
+
+#         heff_mc_etaj2 = etaj2_btag['Top'].Clone('heff_mc_etaj2')
+#         heff_mc_etaj2.Divide(etaj2_btag['Top'],etaj2_bctrl['Top'],1,1,'b')
+#         heff_mc_etaj2.SetTitle('mc (tW/t#bar{t});eta_{j2};tag/ctrl')
+
+
+#         hratio_eta2j = H1RatioPlotter(colors=colors,markers=markers)
+#         hratio_eta2j.scalemax = 1.2
+#         hratio_eta2j.ltitle = 'top tag efficiency (1j)'
+#         hratio_eta2j.rtitle = 'L=%.2f fb^{-1}' % opt.lumi
+#         hratio_eta2j.ytitle2 = 'data/mc'
+#         hratio_eta2j.legalign = ('r','t')
+#         hratio_eta2j.set(heff_mc_etaj2, heff_ds_etaj2)
+#         c = hratio_eta2j.plot()
+#         
+#         for ext in imgext:
+#             c.Print(prefix+'heff_1j_eta.'+ext)
+
     # 
     #  xplots
     # 
