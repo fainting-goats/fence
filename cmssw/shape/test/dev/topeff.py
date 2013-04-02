@@ -55,9 +55,10 @@ def main( opt ):
 
     topflow = CutFlow()
 
-    topflow['base']  = wwflow.string()
-    topflow['bctrl'] = 'jettche1>2.1 && bveto_mu'
-    topflow['btag']  = 'jettche2>2.1'
+    topflow['base']     = wwflow.string()
+    topflow['bveto-mu'] = 'bveto_mu'
+    topflow['bctrl']    = 'jettche1>2.1'
+    topflow['btag']     = 'jettche2>2.1'
 
     print '-'*80
 
@@ -82,8 +83,9 @@ def main( opt ):
     vars = {
 #         'mll_1j'        : ('mll'           , 'njet >= 1', (100,  0, 600) , 'm_{ll} [GeV]' ),
 #         'tche2_1j'      : ('jettche2'      , 'njet >= 1', ( 40,-20,  20) , 'TCHE_{j2}' ),
-        'jetpt2_1j'     : ('jetpt2'        , 'njet >= 1', ( jetptbins, ) , 'pt_{j2}' ) ,
-        'jeteta2_1j'    : ('fabs(jeteta2)' , 'njet == 1', ( 12,  0,  3 ) , 'eta_{j2}' ),
+        '1j_jetpt2_uni' : ('jetpt2'        , 'njet >= 1', ( jetptbins, ) , 'pt_{j2}' ) ,
+        '1j_jetpt2'     : ('jetpt2'        , 'njet >= 1', ( jetptbins, ) , 'pt_{j2}' ) ,
+        '1j_jeteta2'    : ('fabs(jeteta2)' , 'njet == 1', ( 12,  0,  3 ) , 'eta_{j2}' ),
 
     }
 
@@ -105,6 +107,7 @@ def main( opt ):
             for c,h in pf.iteritems():
                 bplots[v][c][n] = h
 
+    bplots.lock()
 
     
     for v,(expr,cut,bins,xaxis) in vars.iteritems():
@@ -114,32 +117,48 @@ def main( opt ):
 
     # block B: control shapes
     vars = {
-#         'njet'            : ('njet'                                               , 'jettche1 > 2.1', (10,  0,10), 'n^{jets}'),
-#         'tche1'           : ('jettche1'                                           , ''              , (40,-20,20), 'TCHE_{j1}' ),
-#         'softjetpt_2j'    : ('jetpt3'                                             , 'jettche1 > 2.1 && njet == 2' , (10,10,30) , 'pt_{j3}' )                     ,
-#         'softjetpt_3j'    : ('jetpt4'                                             , 'jettche1 > 2.1 && njet == 3' , (10,10,30) , 'pt_{j4}' )                     ,
+        'njet'                      : ('njet'          , 'base'     ,  'jettche1 > 2.1'                                  , (10,  0,10), 'n^{jets}'),
+        'tche1'                     : ('jettche1'      , 'base'     ,  ''                                                , (40,-20,20), 'TCHE_{j1}' ),
 
-        'softjet_1j_btotal_eta2' : ('fabs(jeteta2)' , 'bveto_mu && njet == 1 && jettche1 > 2.1'                      , ( 12,  0,  3 ) , 'eta_{j2}' ),
-        'softjet_1j_btag_eta2'   : ('fabs(jeteta2)' , 'bveto_mu && njet == 1 && jettche1 > 2.1 && jettche2 >  2.1'   , ( 12,  0,  3 ) , 'eta_{j2}' ),
-        'softjet_0j_btotal_eta1' : ('fabs(jeteta1)' , 'bveto_mu && njet == 0'                                        , ( 12,  0,  3 ) , 'eta_{j2}' ),
-        'softjet_0j_btag_eta1'   : ('fabs(jeteta1)' , 'bveto_mu && njet == 0 && jettche1 >  2.1'                     , ( 12,  0,  3 ) , 'eta_{j2}' ),
+        'softjet_1j_btotal_jeteta2' : ('fabs(jeteta2)' , 'bveto-mu' ,  'njet == 1 && jettche1 > 2.1'                      , ( 12,  0,  3 ) , 'eta_{j2}' ),
+        'softjet_1j_btag_jeteta2'   : ('fabs(jeteta2)' , 'bveto-mu' ,  'njet == 1 && jettche1 > 2.1 && jettche2 >  2.1'   , ( 12,  0,  3 ) , 'eta_{j2}' ),
+        'softjet_1j_bveto_jeteta2'  : ('fabs(jeteta2)' , 'bveto-mu' ,  'njet == 1 && jettche1 > 2.1 && jettche2 <= 2.1'   , ( 12,  0,  3 ) , 'eta_{j2}' ),
+        'softjet_0j_btotal_jeteta1' : ('fabs(jeteta1)' , 'bveto-mu' ,  'njet == 0'                                        , ( 12,  0,  3 ) , 'eta_{j1}' ),
+        'softjet_0j_btag_jeteta1'   : ('fabs(jeteta1)' , 'bveto-mu' ,  'njet == 0 && jettche1 >  2.1'                     , ( 12,  0,  3 ) , 'eta_{j1}' ),
+        'softjet_0j_bveto_jeteta1'  : ('fabs(jeteta1)' , 'bveto-mu' ,  'njet == 0 && jettche1 <= 2.1'                     , ( 12,  0,  3 ) , 'eta_{j1}' ),
 
-        'softjet_1j_btotal_pt'   : ('jetpt2'        , 'bveto_mu && njet == 1 && jettche1 > 2.1'                      , ( 10, 10, 30 ) , 'pt_{j2}' ) ,
-        'softjet_1j_btag_pt'     : ('jetpt2'        , 'bveto_mu && njet == 1 && jettche1 > 2.1 && jettche2 >  2.1'   , ( 10, 10, 30 ) , 'pt_{j2}' ) ,
-#         'softjet_1j_bveto_pt'    : ('jetpt2'        , 'bveto_mu && njet == 1 && jettche1 > 2.1 && jettche2 <= 2.1'   , ( 10, 10, 30 ) , 'pt_{j2}' ) ,
-        'softjet_0j_btotal_pt'   : ('jetpt1'        , 'bveto_mu && njet == 0'                                        , ( 10, 10, 30 ) , 'pt_{j1}' ) ,
-        'softjet_0j_btag_pt'     : ('jetpt1'        , 'bveto_mu && njet == 0 && jettche1 >  2.1'                     , ( 10, 10, 30 ) , 'pt_{j1}' ) ,
-#         'softjet_0j_bveto_pt'    : ('jetpt1'        , 'bveto_mu && njet == 0 && jettche1 <= 2.1'                     , ( 10, 10, 30 ) , 'pt_{j1}' ) ,
+        'softjet_1j_btotal_jetpt2'  : ('jetpt2'        , 'bveto-mu' ,  'njet == 1 && jettche1 > 2.1'                      , ( 10, 10, 30 ) , 'pt_{j2}' ) ,
+        'softjet_1j_btag_jetpt2'    : ('jetpt2'        , 'bveto-mu' ,  'njet == 1 && jettche1 > 2.1 && jettche2 >  2.1'   , ( 10, 10, 30 ) , 'pt_{j2}' ) ,
+        'softjet_1j_bveto_jetpt2'   : ('jetpt2'        , 'bveto-mu' ,  'njet == 1 && jettche1 > 2.1 && jettche2 <= 2.1'   , ( 10, 10, 30 ) , 'pt_{j2}' ) ,
+        'softjet_0j_btotal_jetpt1'  : ('jetpt1'        , 'bveto-mu' ,  'njet == 0'                                        , ( 10, 10, 30 ) , 'pt_{j1}' ) ,
+        'softjet_0j_btag_jetpt1'    : ('jetpt1'        , 'bveto-mu' ,  'njet == 0 && jettche1 >  2.1'                     , ( 10, 10, 30 ) , 'pt_{j1}' ) ,
+        'softjet_0j_bveto_jetpt1'   : ('jetpt1'        , 'bveto-mu' ,  'njet == 0 && jettche1 <= 2.1'                     , ( 10, 10, 30 ) , 'pt_{j1}' ) ,
+
+
+        'jet_2j_btotal_jeteta2'     : ('fabs(jeteta2)' , 'bveto-mu' ,  'bveto_ip && njet == 2 && jettche1 > 2.1'                    , ( 12,  0,  3 ) , 'eta_{j2}' ),
+        'jet_2j_btag_jeteta2'       : ('fabs(jeteta2)' , 'bveto-mu' ,  'bveto_ip && njet == 2 && jettche1 > 2.1 && jettche2 >  2.1' , ( 12,  0,  3 ) , 'eta_{j2}' ),
+        'jet_2j_bveto_jeteta2'      : ('fabs(jeteta2)' , 'bveto-mu' ,  'bveto_ip && njet == 2 && jettche1 > 2.1 && jettche2 <= 2.1' , ( 12,  0,  3 ) , 'eta_{j2}' ),
+        'jet_1j_btotal_jeteta1'     : ('fabs(jeteta1)' , 'bveto-mu' ,  'bveto_ip && njet == 1'                                      , ( 12,  0,  3 ) , 'eta_{j1}' ),
+        'jet_1j_btag_jeteta1'       : ('fabs(jeteta1)' , 'bveto-mu' ,  'bveto_ip && njet == 1 && jettche1 >  2.1'                   , ( 12,  0,  3 ) , 'eta_{j1}' ),
+        'jet_1j_bveto_jeteta1'      : ('fabs(jeteta1)' , 'bveto-mu' ,  'bveto_ip && njet == 1 && jettche1 <= 2.1'                   , ( 12,  0,  3 ) , 'eta_{j1}' ),
+
+        'jet_2j_btotal_jetpt2'      : ('jetpt2'        , 'bveto-mu' ,  'bveto_ip&& njet == 2 && jettche1 > 2.1'                     , ( 34, 30, 200 ) , 'pt_{j2}' ) ,
+        'jet_2j_btag_jetpt2'        : ('jetpt2'        , 'bveto-mu' ,  'bveto_ip&& njet == 2 && jettche1 > 2.1 && jettche2 >  2.1'  , ( 34, 30, 200 ) , 'pt_{j2}' ) ,
+        'jet_2j_bveto_jetpt2'       : ('jetpt2'        , 'bveto-mu' ,  'bveto_ip&& njet == 2 && jettche1 > 2.1 && jettche2 <= 2.1'  , ( 34, 30, 200 ) , 'pt_{j2}' ) ,
+        'jet_1j_btotal_jetpt1'      : ('jetpt1'        , 'bveto-mu' ,  'bveto_ip&& njet == 1'                                       , ( 34, 30, 200 ) , 'pt_{j1}' ) ,
+        'jet_1j_btag_jetpt1'        : ('jetpt1'        , 'bveto-mu' ,  'bveto_ip&& njet == 1 && jettche1 >  2.1'                    , ( 34, 30, 200 ) , 'pt_{j1}' ) ,
+        'jet_1j_bveto_jetpt1'       : ('jetpt1'        , 'bveto-mu' ,  'bveto_ip&& njet == 1 && jettche1 <= 2.1'                    , ( 34, 30, 200 ) , 'pt_{j1}' ) ,
     }
 
     xplots = AlienDict()
-    for v,(expr,cut,bins,xaxis) in vars.iteritems():
+    for v,(expr,lvl,cut,bins,xaxis) in vars.iteritems():
         for n,a in analysers.iteritems():
             print v,':',n,
-            xplots[v][n] = a.views['base'].plot('xplots_%s_%s' % (n,v), expr,extra=cut,bins=bins)
+            xplots[v][n] = a.views[lvl].plot('xplots_%s_%s' % (n,v), expr,extra=cut,bins=bins)
             print '...done'
-        hwwlatino.printplots(xplots[v],prefix+'xplots_base_%s' % v, xaxis=xaxis, label='base, %s' % cut, lumi=opt.lumi, exts=imgext)
+        hwwlatino.printplots(xplots[v],prefix+'xplots_%s_%s' % (lvl,v), xaxis=xaxis, label='base, %s' % cut, lumi=opt.lumi, exts=imgext)
 
+    xplots.lock()
         
     if 'Top' not in analysers:
         print 'No top, no party'
@@ -147,15 +166,16 @@ def main( opt ):
 
     from ginger.plotter import H1RatioPlotter
     others = ['WW','ggWW','WJet','DYLL','DYTT','VV','Vg','VgS']
+    tops   = ['ttbar','tW']
 
     colors  = [ROOT.kRed+1      , ROOT.kAzure-5   ]
     markers = [ROOT.kFullCircle , ROOT.kFullCircle]
 
     # ---
     # by ptj2
-    if 'jetpt2_1j' in bplots:
-        ptj2_bctrl = bplots['jetpt2_1j']['bctrl']
-        ptj2_btag  = bplots['jetpt2_1j']['btag']
+    if '1j_jetpt2' in bplots:
+        ptj2_bctrl = bplots['1j_jetpt2']['bctrl']
+        ptj2_btag  = bplots['1j_jetpt2']['btag']
 
         ptj2_bctrl_ds = ptj2_bctrl['Data'].Clone('ptj2_bctrl_ds')
         for p in others:  ptj2_bctrl_ds -= ptj2_bctrl[p]
@@ -220,9 +240,9 @@ def main( opt ):
             c.Print(prefix+'htrans_ptj2_zoom.'+ext)
     # ---
     # by etaj2
-    if 'jeteta2_1j' in bplots:
-        etaj2_bctrl = bplots['jeteta2_1j']['bctrl']
-        etaj2_btag  = bplots['jeteta2_1j']['btag']
+    if '1j_jeteta2' in bplots:
+        etaj2_bctrl = bplots['1j_jeteta2']['bctrl']
+        etaj2_btag  = bplots['1j_jeteta2']['btag']
 
         etaj2_bctrl_ds = etaj2_bctrl['Data'].Clone('etaj2_bctrl_ds')
         for p in others:  etaj2_bctrl_ds -= etaj2_bctrl[p]
@@ -250,11 +270,25 @@ def main( opt ):
         
         for ext in imgext:
             c.Print(prefix+'heff_etaj2.'+ext)
+    
+    # 
+    #  xplots
+    # 
 
-    if 'softjet_0j_btag_pt' in xplots and 'softjet_1j_btag_pt' in xplots: 
 
-        ptj2_btag  = xplots['softjet_1j_btag_pt']
-        ptj1_btag  = xplots['softjet_0j_btag_pt']
+    #    ____        _      __ 
+    #   / __ \      (_)__  / /_
+    #  / / / /_____/ / _ \/ __/
+    # / /_/ /_____/ /  __/ /_  
+    # \____/   __/ /\___/\__/  
+    #         /___/            
+
+#     colors  = [ROOT.kRed+1      , ROOT.kAzure-5   , ROOT.kRed+1      , ROOT.kAzure-5   ]
+#     markers = [ROOT.kOpenCircle , ROOT.kOpenCircle, ROOT.kFullCircle , ROOT.kFullCircle]
+    if 'softjet_0j_btag_jetpt1' in xplots and 'softjet_1j_btag_jetpt2' in xplots: 
+
+        ptj2_btag  = xplots['softjet_1j_btag_jetpt2']
+        ptj1_btag  = xplots['softjet_0j_btag_jetpt1']
 
         ptj2_btag_mc  = ptj2_btag['Top']
         ptj2_btag_ds  = ptj2_btag['Data'].Clone('ptj2_btag_ds')
@@ -290,10 +324,10 @@ def main( opt ):
         for ext in imgext:
             c.Print(prefix+'ratio_softjet_pt_0j1j_btag.'+ext)
 
-    if 'softjet_0j_btag_eta1' in xplots and 'softjet_1j_btag_eta2' in xplots: 
+    if 'softjet_0j_btag_jeteta1' in xplots and 'softjet_1j_btag_jeteta2' in xplots: 
 
-        etaj2_btag  = xplots['softjet_1j_btag_eta2']
-        etaj1_btag  = xplots['softjet_0j_btag_eta1']
+        etaj2_btag  = xplots['softjet_1j_btag_jeteta2']
+        etaj1_btag  = xplots['softjet_0j_btag_jeteta1']
 
         etaj2_btag_mc  = etaj2_btag['Top']
         etaj2_btag_ds  = etaj2_btag['Data'].Clone('etaj2_btag_ds')
@@ -315,6 +349,7 @@ def main( opt ):
         etaj1_btag_ds.SetTitle('data-mc_{others} n_{jet}=0;#eta_{j-soft}')
 
         hratio_0j1j_btag = H1RatioPlotter(colors=colors,markers=markers)
+#         hratio_0j1j_btag.set(etaj2_btag_mc,etaj1_btag_mc,etaj2_btag_ds,etaj1_btag_ds)
         hratio_0j1j_btag.set(etaj2_btag_ds,etaj1_btag_ds)
         hratio_0j1j_btag.ltitle  = '"hardest" #eta_{j-soft}'
         hratio_0j1j_btag.rtitle  = '0j vs 1j'
@@ -329,6 +364,93 @@ def main( opt ):
         for ext in imgext:
             c.Print(prefix+'ratio_softjet_eta_0j1j_btag.'+ext)
 
+    #    ___      _      __ 
+    #   <  /     (_)__  / /_
+    #   / /_____/ / _ \/ __/
+    #  / /_____/ /  __/ /_  
+    # /_/   __/ /\___/\__/  
+    #      /___/            
+
+    # 1-jet bin estimate
+    if 'jet_1j_btag_jetpt1' in xplots and 'jet_2j_btag_jetpt2' in xplots: 
+
+        ptj2_btag  = xplots['jet_2j_btag_jetpt2']
+        ptj1_btag  = xplots['jet_1j_btag_jetpt1']
+
+        ptj2_btag_mc  = ptj2_btag['Top']
+        ptj2_btag_ds  = ptj2_btag['Data'].Clone('ptj2_btag_ds')
+        for p in others:  ptj2_btag_ds  -= ptj2_btag[p]
+
+        ptj1_btag_mc  = ptj1_btag['Top']
+        ptj1_btag_ds  = ptj1_btag['Data'].Clone('ptj1_btag_ds')
+        for p in others:  ptj1_btag_ds  -= ptj1_btag[p]
+
+        # btag region
+        ptj2_btag_ds.Scale(1./ptj2_btag_ds.Integral())
+        ptj2_btag_mc.Scale(1./ptj2_btag_mc.Integral())
+        ptj1_btag_ds.Scale(1./ptj1_btag_ds.Integral())
+        ptj1_btag_mc.Scale(1./ptj1_btag_mc.Integral())
+
+        ptj2_btag_mc.SetTitle('mc_{top} n_{jet}=2;pt_{j}')
+        ptj1_btag_mc.SetTitle('mc_{top} n_{jet}=1;pt_{j}')
+        ptj2_btag_ds.SetTitle('data-mc_{others} n_{jet}=2;pt_{j}')
+        ptj1_btag_ds.SetTitle('data-mc_{others} n_{jet}=1;pt_{j}')
+
+        hratio_1j2j_btag = H1RatioPlotter(colors=colors,markers=markers)
+#         hratio_1j2j_btag.set(ptj2_btag_mc, ptj1_btag_mc, ptj2_btag_ds, ptj1_btag_ds)
+        hratio_1j2j_btag.set(ptj2_btag_ds,ptj1_btag_ds)
+        hratio_1j2j_btag.ltitle      = 'pt_{j-soft}'
+        hratio_1j2j_btag.rtitle      = '1j vs 2j'
+        hratio_1j2j_btag.ytitle2     = 'x/mc_{top} n_{jet} = 2'
+        hratio_1j2j_btag.legtextsize = 25
+        hratio_1j2j_btag.legboxsize  = 30
+        hratio_1j2j_btag.scalemax    = 1.2
+        hratio_1j2j_btag.markersize  = 16
+        hratio_1j2j_btag.legalign    = ('r','t')
+
+        c = hratio_1j2j_btag.plot()
+        for ext in imgext:
+            c.Print(prefix+'ratio_jet_pt_1j2j_btag.'+ext)
+
+    if 'jet_1j_btag_jeteta1' in xplots and 'jet_2j_btag_jeteta2' in xplots: 
+
+        etaj2_btag  = xplots['jet_2j_btag_jeteta2']
+        etaj1_btag  = xplots['jet_1j_btag_jeteta1']
+
+        etaj2_btag_mc  = etaj2_btag['Top']
+        etaj2_btag_ds  = etaj2_btag['Data'].Clone('etaj2_btag_ds')
+        for p in others:  etaj2_btag_ds  -= etaj2_btag[p]
+
+        etaj1_btag_mc  = etaj1_btag['Top']
+        etaj1_btag_ds  = etaj1_btag['Data'].Clone('etaj1_btag_ds')
+        for p in others:  etaj1_btag_ds  -= etaj1_btag[p]
+
+        # btag region
+        etaj2_btag_ds.Scale(1./etaj2_btag_ds.Integral())
+        etaj2_btag_mc.Scale(1./etaj2_btag_mc.Integral())
+        etaj1_btag_ds.Scale(1./etaj1_btag_ds.Integral())
+        etaj1_btag_mc.Scale(1./etaj1_btag_mc.Integral())
+
+        etaj2_btag_mc.SetTitle('mc_{top} n_{jet}=1;#eta_{j}')
+        etaj1_btag_mc.SetTitle('mc_{top} n_{jet}=0;#eta_{j}')
+        etaj2_btag_ds.SetTitle('data-mc_{others} n_{jet}=1;#eta_{j}')
+        etaj1_btag_ds.SetTitle('data-mc_{others} n_{jet}=0;#eta_{j}')
+
+        hratio_1j2j_btag = H1RatioPlotter(colors=colors,markers=markers)
+#         hratio_1j2j_btag.set(etaj2_btag_mc, etaj1_btag_mc, etaj2_btag_ds, etaj1_btag_ds)
+        hratio_1j2j_btag.set(etaj2_btag_ds,etaj1_btag_ds)
+        hratio_1j2j_btag.ltitle      = '#eta_{j}'
+        hratio_1j2j_btag.rtitle      = '1j vs 2j'
+        hratio_1j2j_btag.ytitle2     = 'x/mc_{top} n_{jet} = 1'
+        hratio_1j2j_btag.legtextsize = 25
+        hratio_1j2j_btag.legboxsize  = 30
+        hratio_1j2j_btag.scalemax    = 1.2
+        hratio_1j2j_btag.markersize  = 16
+        hratio_1j2j_btag.legalign    = ('r','t')
+
+        c = hratio_1j2j_btag.plot()
+        for ext in imgext:
+            c.Print(prefix+'ratio_jet_eta_1j2j_btag.'+ext)
 
 # ---
 if __name__ == '__main__':

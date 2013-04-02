@@ -5,6 +5,28 @@ import HWWAnalysis.Misc.odict as odict
 orchard = '/shome/mtakahashi/HWW/Tree/ShapeAna/53x_195fb/tree_skim_wwmin/'
 orchard = '/shome/thea/HWW/work/shapeMoriond/trees/dileptons'
 
+
+order=[
+    'ggH',  
+    'vbfH', 
+    'wzttH',
+    'VH',   
+    'wH',   
+    'zH',   
+
+
+    'WW',   
+    'ggWW', 
+    'VV',   
+    'WJet', 
+    'Top',  
+    'Vg',   
+    'VgS',  
+    'DYTT', 
+    'DYLL', 
+    'DYee', 
+    'DYmm', 
+]
 # ---
 def main( opt ):
     print opt
@@ -24,7 +46,10 @@ def main( opt ):
     
     for n,s in samples.iteritems():
         print '%-10s'%n,s
+    del samples['VVV']
     analysers = hwwlatino.makeanalysers(samples,orchard,cutflow,opt.lumi)
+
+    print '-'*80
 
     for n,a in analysers.iteritems():
         old = a.worker.entries()
@@ -56,9 +81,9 @@ def main( opt ):
         hwwtools.ensuredir(opt.out)
         prefix = opt.out+'/'
 
-    for c in cutflow:
-        hwwlatino.printplots(plots_mm[c],prefix+'plot_mm_mll_%s' % c,xaxis='m_{ll} [GeV]', lumi=opt.lumi, logy=True, exts=['pdf','png'])
-        hwwlatino.printplots(plots_ee[c],prefix+'plot_ee_mll_%s' % c,xaxis='m_{ll} [GeV]', lumi=opt.lumi, logy=True, exts=['pdf','png'])
+    for i,c in enumerate(cutflow):
+        hwwlatino.printplots(plots_mm[c],prefix+'plot_%d_mm_mll_%s' % (i,c),xaxis='m_{ll} [GeV]', lumi=opt.lumi, logy=True, exts=['pdf','png'], order=order)
+        hwwlatino.printplots(plots_ee[c],prefix+'plot_%d_ee_mll_%s' % (i,c),xaxis='m_{ll} [GeV]', lumi=opt.lumi, logy=True, exts=['pdf','png'], order=order)
 
 # ---
 if __name__ == '__main__':

@@ -2,6 +2,7 @@
 
 import ROOT
 import os
+import HWWAnalysis.Misc.odict as odict
 
 import hwwplot
 shape_path = os.path.join(os.getenv('CMSSW_BASE'),'src/HWWAnalysis/ShapeAnalysis/')
@@ -9,25 +10,31 @@ print 'Shape directory is',shape_path
 ROOT.gInterpreter.ExecuteMacro(shape_path+'macros/LatinoStyle2.C');
 
 
-defaults  = {
-    'ggH':  { 'color':633, 'label':'ggH m_{H}=125', },
-    'vbfH': { 'color':634, 'label':'qqH m_{H}=125', },
-    'VH':   { 'color':635, 'label':'VH m_{H}=125' , },
+defaults  = odict.OrderedDict([ 
+    ('ggH',  { 'color':ROOT.kRed+1, 'label':'ggH', }),
+    ('vbfH', { 'color':ROOT.kRed+2, 'label':'qqH', }),
+    ('wzttH',{ 'color':ROOT.kRed+3, 'label':'VH' , }),
+    ('VH',   { 'color':ROOT.kRed+3, 'label':'VH' , }),
+    ('wH',   { 'color':ROOT.kRed-3, 'label':'wH' , }),
+    ('zH',   { 'color':ROOT.kRed-4, 'label':'zH' , }),
 
-    'VV':   { 'color':858, 'label':'WZ/ZZ' , },  
-    'WJet': { 'color':921, 'label':'W+jets' , },
-    'Vg':   { 'color':617, 'label':'V+#gamma' , },
-    'VgS':  { 'color':618, 'label':'V+#gamma*' , },
-    'Top':  { 'color':400, 'label':'top' , },
-    'DYTT': { 'color':418, 'label':'DY+jets' , },
-#     'DYLL': { 'color':419, 'label':'DY+jets' , },
-    'WW':   { 'color':851, 'label':'WW' , },
-    'ggWW': { 'color':853, 'label':'ggWW' , },
-
-}
+    ('VV',   { 'color':ROOT.kAzure-2,   'label':'WZ/ZZ'     , }),  
+    ('DYTT', { 'color':ROOT.kGreen+2,   'label':'DY+jets'   , }),
+    ('DYLL', { 'color':ROOT.kGreen+3,   'label':'DY+jets'   , }),
+    ('DYee', { 'color':ROOT.kGreen+3,   'label':'DY+jets'   , }),
+    ('DYmm', { 'color':ROOT.kGreen+3,   'label':'DY+jets'   , }),
+    ('Vg',   { 'color':ROOT.kMagenta+1, 'label':'V+#gamma'  , }),
+    ('VgS',  { 'color':ROOT.kMagenta+2, 'label':'V+#gamma*' , }),
+    ('WJet', { 'color':ROOT.kGray+1,    'label':'W+jets'    , }),
+    ('Top',  { 'color':ROOT.kYellow,    'label':'top'       , }),
+    ('ttbar',{ 'color':ROOT.kOrange-2,  'label':'t#bar{t}'  , }),
+    ('tW',   { 'color':ROOT.kOrange-4,  'label':'tW'        , }),
+    ('WW',   { 'color':ROOT.kAzure-9,   'label':'WW'        , }),
+    ('ggWW', { 'color':ROOT.kAzure-7,   'label':'WW'        , }),
+])
 
 shapes = {}
-names = ['data','ggH', 'vbfH', 'VH', 'VV', 'WJet', 'Vg', 'VgS', 'Top', 'DYTT', 'WW', 'ggWW']
+names = ['data','ggH', 'vbfH', 'VH', 'VV', 'WJet', 'Vg', 'VgS', 'Top', 'DYTT', 'DYLL', 'WW', 'ggWW']
 l = len(names)
 for i,n in enumerate(names):
     h = ROOT.TH1F('name_'+n,'title '+n,l,0,l)
@@ -54,11 +61,16 @@ plot.addbkg('Vg',   shapes['Vg'])
 plot.addbkg('VgS',  shapes['VgS'])
 plot.addbkg('Top',  shapes['Top'])
 plot.addbkg('DYTT', shapes['DYTT'])
-# plot.addbkg('DYLL', shapes['DYLL'])
+plot.addbkg('DYLL', shapes['DYLL'])
 plot.addbkg('WW',   shapes['WW'])
 plot.addbkg('ggWW', shapes['ggWW'])
 
+# plot.setorder(['ggH', 'vbfH', 'VH', 'VV', 'WJet', 'Vg', 'VgS', 'Top', 'DYTT', 'DYLL', 'WW', 'ggWW'])
+plot.setorder(['ggH', 'vbfH', 'VH', 'DYTT', 'DYLL', 'WJet', 'Vg', 'VgS', 'Top','VV', 'WW', 'ggWW'])
+
 plot.prepare()
+# plot.mergeSamples() #---- merge trees with the same name! ---- to be called after "prepare"
+
 
 ## 1 = signal over background , 0 = signal on its own
 plot.set_addSignalOnBackground(0);
@@ -71,11 +83,12 @@ plot.setMass(125);
 c1 = ROOT.TCanvas("mll","mll",500,600)
 
 # hookDebugger()
-plot.Draw(c1, 1, True)
+plot.draw(c1, 1, True)
 
 c1.Print('testplot.pdf')
+c1.Print('testplot.png')
 
-if False
+if False:
     shape_path = os.path.join(os.getenv('CMSSW_BASE'),'src/HWWAnalysis/ShapeAnalysis/')
     print 'Shape directory is',shape_path
 
