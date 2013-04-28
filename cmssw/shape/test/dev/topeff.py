@@ -18,7 +18,7 @@ tops   = ['ttbar','tW']
 others = ['WW','ggWW','WJet','DYLL','DYTT','VV','Vg','VgS','tW']
 tops   = ['ttbar']
 
-from base import AlienDict
+from commons import AlienDict
 
 # ---
 def thsum( plots, newname, processes ):
@@ -31,7 +31,7 @@ def thsum( plots, newname, processes ):
     hnew = plots[processes[0]].Clone(newname)
     hnew.Reset()
     for p in processes: 
-        hnew += plots[p]
+        hnew.Add(plots[p])
 
     return hnew
 
@@ -85,17 +85,24 @@ def vars2plots( analysers, vars, opt ):
             # but only if they are 1D
             if isinstance(plots[v]['base']['Data'],ROOT.TH2): continue
             print v
-            hwwlatino.printplots(plots[v]['bctrl'],prefix+'bplot_bctrl_%s' % v,xlabel=xlabel, units=units, label='b_{CTRL}, %s' % cut, div=div, lumi=opt.lumi, exts=imgext)
-            hwwlatino.printplots(plots[v]['btag'] ,prefix+'bplot_btag_%s'  % v,xlabel=xlabel, units=units, label='b_{TAG} , %s' % cut, div=div, lumi=opt.lumi, exts=imgext)
+            hwwlatino.printplots(plots[v]['bctrl'],opt.prefix+'bplot_bctrl_%s' % v,xlabel=xlabel, units=units, label='b_{CTRL}, %s' % cut, div=div, lumi=opt.lumi, exts=opt.imgext)
+            hwwlatino.printplots(plots[v]['btag'] ,opt.prefix+'bplot_btag_%s'  % v,xlabel=xlabel, units=units, label='b_{TAG} , %s' % cut, div=div, lumi=opt.lumi, exts=opt.imgext)
     
     
     return plots
 
 # _______________________________________________________________________________
-def makeefficiency( name, bplots, x, xlabel, scalemax, legalign, lumi, imgext, prefix,  logx=False,save=None ):
+# def makeefficiency( name, bplots, x, xlabel, scalemax, legalign, lumi, imgext, prefix, logx=False, options='', save=None ):
+def makeefficiency( name, bplots, x, xlabel, scalemax, legalign, **commons):
 
-    colors  = [ROOT.kRed+1      , ROOT.kAzure-5   ]
-    markers = [ROOT.kFullCircle , ROOT.kFullCircle]
+    lumi    = commons.get( 'lumi'    , 1.    )
+    imgext  = commons.get( 'imgext'  , []    )
+    prefix  = commons.get( 'prefix'  , ''    )
+    logx    = commons.get( 'logx'    , False )
+    options = commons.get( 'options' , ''    )
+    colors  = commons.get( 'colors'  , [ROOT.kRed+1        , ROOT.kAzure-5   ])
+    markers = commons.get( 'markers' , [ROOT.kFullCircle   , ROOT.kFullCircle])
+    save    = commons.get( 'save'    , None  )
 
     try:
         x_bctrl = bplots[x]['bctrl']
@@ -136,10 +143,10 @@ def makeefficiency( name, bplots, x, xlabel, scalemax, legalign, lumi, imgext, p
     hratio.morelogx   = logx
     hratio.yrange     = (0.,0.9)
     hratio.set(heff_mc_x, heff_ds_x)
-    c = hratio.plot()
+    c = hratio.plot(options)
     
-    for ext in imgext:
-        c.Print(prefix+name+'.'+ext )
+    for ext in opt.imgext:
+        c.Print(opt.prefix+name+'.'+ext )
 
     if save is not None:
         save['%s_ds' % name] = heff_ds_x
@@ -175,25 +182,21 @@ def makeefficiency( name, bplots, x, xlabel, scalemax, legalign, lumi, imgext, p
 #             c.Print(prefix+'htrans_ptj2_zoom.'+ext)
 
 
-# ---
-def doefficiencies( analysers, imgext, prefix, opt ):
+# _______________________________________________________________________________
+def doeffs_usesublead( analysers, opt ):
     # ---
     # variables
 #     jet_ptbins = range(10,  30, 4) + range( 30, 70, 5) + range( 70, 150, 20) + range(150,201, 50)
 
     softjets_ptbins = range(5, 31, 5)
-    jet_ptbins  = range(5, 70, 5) + range( 70, 150, 20) + range(150,251, 50)
-    hardjet_ptbins =                   range( 30, 70, 5) + range( 70, 150, 20) + range(150,251, 50)
+    jet_ptbins  = range(10, 70, 10) + range( 70, 150, 20) + range(150, 251, 50)
+    hardjet_ptbins =                  range( 30, 70, 10)   + range( 70, 150, 20) + range(150,251, 50)
 
     etabins = [0.,0.75,1.5,2.8,5]
     
-    eta_b1 = 'fabs(jeteta2) < 0.75'                        
-    eta_b2 = 'fabs(jeteta2) >=0.75 && fabs(jeteta2)< 1.5  '
-    eta_b3 = 'fabs(jeteta2) >=1.5  && fabs(jeteta2)< 2.8'  
-    eta_b4 = 'fabs(jeteta2) >=2.8  && fabs(jeteta2)< 5. '  
-    
     hp50 = 'jetpt1 > 50 && ( njet <= 1 || (bveto_ip && njet >= 2) ) && jettche3<=2.1 && jettche4<=2.1'
     hp   =                '( njet <= 1 || (bveto_ip && njet >= 2) ) && jettche3<=2.1 && jettche4<=2.1'
+    hp50 = 'softtche<=2.1 && jetpt1>50'
     
     divbins = False
 
@@ -214,18 +217,20 @@ def doefficiencies( analysers, imgext, prefix, opt ):
 
         '1j_jet_eta2-pt2'      : ('fabs(jeteta2):jetpt2', 'njet == 1'                 , ( softjets_ptbins, etabins ) , divbins , 'p_{T}^{j2}', 'GeV' ) ,
 
-        '2j_jeteta2'          : ('fabs(jeteta2)'        , 'bveto_ip && njet == 2'     , ( 12,  0,  3 )              , False   , '#eta_{j2}', '' ),
-        '2j_jeteta2-bins'     : ('fabs(jeteta2)'        , 'bveto_ip && njet == 2'     , ( etabins, )                , False   , '#eta_{j2}', '' ),
-                                                                                                                    
-        '2j_jet_eta2-pt2'     : ('fabs(jeteta2):jetpt2' , 'bveto_ip && njet == 2'     , ( hardjet_ptbins, etabins ) , divbins , 'p_{T}^{j2}', 'GeV' ) ,
+        '2j_jeteta2'          : ('fabs(jeteta2)'        , 'bveto_ip && njet==2'       , ( 20,  0, 5 )               , False   , '#eta_{j2}', '' ),
+        '2j_jeteta2-bins'     : ('fabs(jeteta2)'        , 'bveto_ip && njet==2'       , ( etabins, )                , False   , '#eta_{j2}', '' ),
+                                                                                                                      
+        '2j_jet_eta2-pt2'     : ('fabs(jeteta2):jetpt2' , 'bveto_ip && njet==2'       , ( hardjet_ptbins, etabins ) , divbins , 'p_{T}^{j2}', 'GeV' ) ,
+
+        '2j_jet_eta2-pt2-hp50': ('fabs(jeteta2):jetpt2' , 'njet==2 && %s' % ( hp50,)  , ( hardjet_ptbins, etabins ) , divbins , 'p_{T}^{j2}', 'GeV' ) ,
     }
 
     # use this for tests
     if opt.testmode:
-        vars = {
-            'kj_jet_eta2-pt2-hp50' : ('fabs(jeteta2):jetpt2', 'njet >= 1 && %s' % (hp50,) , ( jet_ptbins, etabins ) , divbins , 'p_{T}^{j2}', 'GeV' ) ,
-            'kj_jet_eta2-pt2-hp'   : ('fabs(jeteta2):jetpt2', 'njet >= 1 && %s' % (hp,)   , ( jet_ptbins, etabins ) , divbins , 'p_{T}^{j2}', 'GeV' ) ,
-        }
+#         testvars = ['kj_jet_eta2-pt2-hp50','kj_jet_eta2-pt2-hp']
+        testvars = ['2j_jet_eta2-pt2-hp50','2j_jeteta2']
+        vars = { i:j for i,j in vars.iteritems() if i in testvars }
+        print vars
 
 
     bplots = vars2plots( analysers, vars, opt)
@@ -235,9 +240,11 @@ def doefficiencies( analysers, imgext, prefix, opt ):
     # common paramete
     commons = {
         'lumi'   : opt.lumi,
-        'imgext' : imgext,
-        'prefix' : prefix,
+        'imgext' : opt.imgext,
+        'prefix' : opt.prefix,
         'save'   : heffs,
+#         'options': 'text',
+#         'markers':[ROOT.kFullDotSmall , ROOT.kFullDotSmall],
     }
 
 
@@ -247,8 +254,9 @@ def doefficiencies( analysers, imgext, prefix, opt ):
         makeefficiency( 'heff_kj_pt-hp50_%s' %x , bplots , 'kj_jet_eta2-pt2-hp50_%s' %x ,  'pt_{j2}' , 1.1 , ('r','b') , logx=True , **commons )
         makeefficiency( 'heff_kj_pt-hp_%s'   %x , bplots , 'kj_jet_eta2-pt2-hp_%s'   %x ,  'pt_{j2}' , 1.1 , ('r','b') , logx=True , **commons )
         makeefficiency( 'heff_kj_pt_%s' %x      , bplots , 'kj_jet_eta2-pt2_%s'      %x ,  'pt_{j2}' , 1.1 , ('r','b') , logx=True , **commons )
-        makeefficiency( 'heff_0j_pt_%s' %x      , bplots , '1j_jet_eta2-pt2_%s'      %x ,  'pt_{j2}' , 1.1 , ('l','t') , logx=False, **commons )
-        makeefficiency( 'heff_1j_pt_%s' %x      , bplots , '2j_jet_eta2-pt2_%s'      %x ,  'pt_{j2}' , 1.1 , ('r','b') , logx=False, **commons )
+        makeefficiency( 'heff_0j_pt_%s' %x      , bplots , '1j_jet_eta2-pt2_%s'      %x ,  'pt_{j2}' , 1.1 , ('l','t') , logx=True , **commons )
+        makeefficiency( 'heff_1j_pt_%s' %x      , bplots , '2j_jet_eta2-pt2_%s'      %x ,  'pt_{j2}' , 1.1 , ('r','b') , logx=True , **commons )
+        makeefficiency( 'heff_1j_pt-hp50_%s' %x , bplots , '2j_jet_eta2-pt2-hp50_%s' %x ,  'pt_{j2}' , 1.1 , ('r','b') , logx=True , **commons )
    
     makeefficiency( 'heff_0j_pt-fine'       , bplots , '1j_jetpt2-fine'          ,  'pt_{j2}'   , 1.1 , ('l','t') , **commons )
     makeefficiency( 'heff_0j_eta'           , bplots , '1j_jeteta2'              ,  '#eta_{j2}' , 1.3 , ('r','t') , **commons )
@@ -260,7 +268,6 @@ def doefficiencies( analysers, imgext, prefix, opt ):
     markers = [ROOT.kFullCircle , ROOT.kFullCircle , ROOT.kFullCircle , ROOT.kFullCircle]
 
     try:
-#         heff_fj = [ heffs['heff_ds_%s' % n] for n in [ 'kj_jetpt2-hp50','kj_jetpt2-hp50-jeteta2-b0','kj_jetpt2-hp50-jeteta2-b1','kj_jetpt2-hp50-jeteta2-b2']] 
         heff = [heffs['heff_kj_pt-hp50_%s_ds' %x] for x in ['inc','by1','by2','by3','by4']]
         heff[0].SetTitle('#eta-inclusive;p_{T} [GeV]; efficiency')
         heff[1].SetTitle('0.   < |#eta| < 0.75')
@@ -276,17 +283,16 @@ def doefficiencies( analysers, imgext, prefix, opt ):
         hratio.legboxsize  = 30
         hratio.legalign    = ('r','b')
         hratio.logx        = True
-        hratio.yrange      = (0.,0.9)
+        hratio.yrange     = (0.,1.)
 
         c = hratio.plot()
-        for ext in imgext:
-            c.Print(prefix+'heff_ratio_kj-hp50.%s' % ext )
+        for ext in opt.imgext:
+            c.Print(opt.prefix+'heff_ratio_kj-hp50.%s' % ext )
     except KeyError as ke:
         print 'Not found:',ke
            
 
     try:
-#         heff_fj = [ heffs['heff_ds_%s' % n] for n in [ 'kj_jetpt2-hp','kj_jetpt2-hp-jeteta2-b0','kj_jetpt2-hp-jeteta2-b1','kj_jetpt2-hp-jeteta2-b2']] 
         heff = [heffs['heff_kj_pt-hp_%s_ds' %x] for x in ['inc','by1','by2','by3','by4']]
         heff[0].SetTitle('#eta-inclusive;p_{T} [GeV]; efficiency')
         heff[1].SetTitle('0.   < |#eta| < 0.75')
@@ -302,16 +308,15 @@ def doefficiencies( analysers, imgext, prefix, opt ):
         hratio.legboxsize  = 30
         hratio.legalign    = ('r','b')
         hratio.logx        = True
-        hratio.yrange      = (0.,0.9)
+        hratio.yrange     = (0.,1.)
 
         c = hratio.plot()
-        for ext in imgext:
-            c.Print(prefix+'heff_ratio_kj-hp.%s' % ext )
+        for ext in opt.imgext:
+            c.Print(opt.prefix+'heff_ratio_kj-hp.%s' % ext )
     except KeyError as ke:
         print 'Not found:',ke
 
     try:
-#         heff_fj = [ heffs['heff_ds_%s' % n] for n in [ 'kj_jetpt2','kj_jetpt2-jeteta2-b0','kj_jetpt2-jeteta2-b1','kj_jetpt2-jeteta2-b2']] 
         heff = [heffs['heff_kj_pt_%s_ds' %x] for x in ['inc','by1','by2','by3','by4']]
         heff[0].SetTitle('#eta-inclusive;p_{T} [GeV]; efficiency')
         heff[1].SetTitle('0.   < |#eta| < 0.75')
@@ -326,17 +331,16 @@ def doefficiencies( analysers, imgext, prefix, opt ):
         hratio.legboxsize  = 30
         hratio.legalign    = ('r','b')
         hratio.logx        = True
-        hratio.yrange      = (0.,0.9)
+        hratio.yrange     = (0.,1.)
 
         c = hratio.plot()
-        for ext in imgext:
-            c.Print(prefix+'heff_ratio_kj.%s' % ext )
+        for ext in opt.imgext:
+            c.Print(opt.prefix+'heff_ratio_kj.%s' % ext )
     except KeyError as ke:
         print 'Not found:',ke
 
     try:
         # --0jet---
-#         heff = [ heffs['heff_ds_%s' % n] for n in [ '1j_jetpt2','1j_jetpt2-jeteta2-b0','1j_jetpt2-jeteta2-b1','1j_jetpt2-jeteta2-b2']] 
         heff = [heffs['heff_0j_pt_%s_ds' %x] for x in ['inc','by1','by2','by3','by4']]
         heff[0].SetTitle('#eta-inclusive;p_{T} [GeV]; efficiency')
         heff[1].SetTitle('0.   < |#eta| < 0.75')
@@ -348,16 +352,16 @@ def doefficiencies( analysers, imgext, prefix, opt ):
         hratio.scalemax = 1.2
         hratio.legtextsize = 25
         hratio.legboxsize  = 30
+        hratio.yrange     = (0.,1.)
 
         c = hratio.plot()
-        for ext in imgext:
-            c.Print(prefix+'heff_ratio_0j.%s' % ext )
+        for ext in opt.imgext:
+            c.Print(opt.prefix+'heff_ratio_0j.%s' % ext )
     except KeyError as ke:
         print 'Not found:',ke
 
     try:
         # --1jet---
-#         heff = [ heffs['heff_ds_%s' % n] for n in [ '2j_jetpt2','2j_jetpt2-jeteta2-b0','2j_jetpt2-jeteta2-b1','2j_jetpt2-jeteta2-b2']] 
         heff = [heffs['heff_1j_pt_%s_ds' %x] for x in ['inc','by1','by2','by3','by4']]
         heff[0].SetTitle('#eta-inclusive;p_{T} [GeV]; efficiency')
         heff[1].SetTitle('0.   < |#eta| < 0.75')
@@ -370,14 +374,101 @@ def doefficiencies( analysers, imgext, prefix, opt ):
         hratio.legtextsize = 25
         hratio.legboxsize  = 30
         hratio.legalign    = ('r','b')
+        hratio.yrange     = (0.,1.)
 
         c = hratio.plot()
-        for ext in imgext:
-            c.Print(prefix+'heff_ratio_1j.%s' % ext )
+        for ext in opt.imgext:
+            c.Print(opt.prefix+'heff_ratio_1j.%s' % ext )
     except KeyError as ke:
         print 'Not found:',ke
 
-def doraemon(analysers, imgext, prefix, opt ):
+    try:
+        # --1jet---
+        heff = [heffs['heff_1j_pt-hp50_%s_ds' %x] for x in ['inc','by1','by2','by3','by4']]
+        heff[0].SetTitle('#eta-inclusive;p_{T} [GeV]; efficiency')
+        heff[1].SetTitle('0.   < |#eta| < 0.75')
+        heff[2].SetTitle('0.75 < |#eta| < 1.5')
+        heff[3].SetTitle('1.5  < |#eta| < 2.8')
+        hratio = H1RatioPlotter(markers=markers)
+        hratio.set(*heff)
+        hratio.markersize  = 16
+        hratio.scalemax    = 1.
+        hratio.ltitle      = 'eff in eta bins'
+        hratio.rtitle      = 'high purity (p_{T}^{jet} > 50 GeV)'
+        hratio.legtextsize = 25
+        hratio.legboxsize  = 30
+        hratio.legalign    = ('r','b')
+        hratio.yrange      = (0.,1.)
+
+        c = hratio.plot()
+        for ext in opt.imgext:
+            c.Print(opt.prefix+'heff_ratio_1j.%s' % ext )
+    except KeyError as ke:
+        print 'Not found:',ke
+
+# _______________________________________________________________________________
+def doeffs_uselead(analysers, opt):
+
+    # some parameters
+    hardjet_ptbins = range( 30, 70, 10) + range( 70, 150, 20) + range(150,251, 50)
+    etabins        = [0.,0.75,1.5,2.8,5]
+
+    divbins = True
+
+    # variable definitions (to be turned into plots)
+    vars = {
+        '2j_jeteta1'      : ('fabs(jeteta1)'        , 'njet == 2' , ( 20,  0,  5 )              , False   , '#eta_{j1}', '' ),
+        '2j_jet_eta1-pt1' : ('fabs(jeteta1):jetpt1' , 'njet == 2' , ( hardjet_ptbins, etabins ) , divbins , 'p_{T}^{j1}', 'GeV' ) ,
+    }
+
+    bplots = vars2plots( analysers, vars, opt)
+
+    heffs = odict.OrderedDict()
+
+    # common paramete
+    commons = {
+        'lumi'   : opt.lumi,
+        'imgext' : opt.imgext,
+        'prefix' : opt.prefix,
+        'save'   : heffs,
+#         'options': 'text',
+#         'markers':[ROOT.kFullDotSmall , ROOT.kFullDotSmall],
+    }
+
+    # calls to plot the efficiencies
+    for x in ['inc','by1','by2','by3','by4']:
+        makeefficiency( 'heff_1j_pt_%s' %x      , bplots , '2j_jet_eta1-pt1_%s'      %x ,  'pt_{j1}' , 1.1 , ('r','b') , logx=True, **commons )
+
+    makeefficiency( 'heff_1j_eta'           , bplots , '2j_jeteta1'              ,  '#eta_{j1}' , 1.3 , ('r','t') , **commons )
+
+    markers = [ROOT.kFullCircle , ROOT.kFullCircle , ROOT.kFullCircle , ROOT.kFullCircle]
+
+    try:
+        # --1jet---
+        heff = [heffs['heff_1j_pt_%s_ds' %x] for x in ['inc','by1','by2','by3','by4']]
+        heff[0].SetTitle('#eta-inclusive;p_{T} [GeV]; efficiency')
+        heff[1].SetTitle('0.   < |#eta| < 0.75')
+        heff[2].SetTitle('0.75 < |#eta| < 1.5')
+        heff[3].SetTitle('1.5  < |#eta| < 2.8')
+        hratio = H1RatioPlotter(markers=markers)
+        hratio.set(*heff)
+        hratio.markersize  = 16
+        hratio.scalemax    = 1.
+        hratio.logx        = True
+        hratio.morelogx    = True
+        hratio.legtextsize = 25
+        hratio.legboxsize  = 30
+        hratio.legalign    = ('r','b')
+        hratio.yrange      = (0.,1.)
+
+        c = hratio.plot()
+        for ext in opt.imgext:
+            c.Print(opt.prefix+'heff_ratio_1j.%s' % ext )
+    except KeyError as ke:
+        print 'Not found:',ke
+
+# _______________________________________________________________________________
+def doraemon(analysers, opt ):
     
     n ='ttbar'
     a = analysers[n]
@@ -468,6 +559,7 @@ commons = {
 } 
 
 
+# _______________________________________________________________________________
 def makeratio(name, x1_plots,x2_plots, **kwargs): #, ltitle, rtitle, legtextsize, legboxsize, scalemax, markersize ):
 
     colors  = [ROOT.kRed+1      , ROOT.kAzure-5   ]
@@ -518,57 +610,57 @@ def makeratio(name, x1_plots,x2_plots, **kwargs): #, ltitle, rtitle, legtextsize
     for ext in imgext:
         c.Print(prefix+name+'.'+ext)
 
-#---
-def doratios(analysers, imgext, prefix, opt ):
+# _______________________________________________________________________________
+def doratios(analysers, opt ):
 
     # block B: control shapes
     vars = {
         'njet'                      : ('njet'          , 'base'     ,  'jettche1 > 2.1'                                  , (10,  0,10), 'n^{jets}'),
         'tche1'                     : ('jettche1'      , 'base'     ,  ''                                                , (40,-20,20), 'TCHE_{j1}' ),
 
-        'softjet_1j_btotal_jeteta2' : ('fabs(jeteta2)' , 'bveto-mu' ,  'njet == 1 && jettche1 > 2.1'                      , ( 12,  0,  3 ) , 'eta_{j2}' ),
+#         'softjet_1j_btotal_jeteta2' : ('fabs(jeteta2)' , 'bveto-mu' ,  'njet == 1 && jettche1 > 2.1'                      , ( 12,  0,  3 ) , 'eta_{j2}' ),
         'softjet_1j_btag_jeteta2'   : ('fabs(jeteta2)' , 'bveto-mu' ,  'njet == 1 && jettche1 > 2.1 && jettche2 >  2.1'   , ( 12,  0,  3 ) , 'eta_{j2}' ),
-        'softjet_1j_bveto_jeteta2'  : ('fabs(jeteta2)' , 'bveto-mu' ,  'njet == 1 && jettche1 > 2.1 && jettche2 <= 2.1'   , ( 12,  0,  3 ) , 'eta_{j2}' ),
-        'softjet_0j_btotal_jeteta1' : ('fabs(jeteta1)' , 'bveto-mu' ,  'njet == 0'                                        , ( 12,  0,  3 ) , 'eta_{j1}' ),
+#         'softjet_1j_bveto_jeteta2'  : ('fabs(jeteta2)' , 'bveto-mu' ,  'njet == 1 && jettche1 > 2.1 && jettche2 <= 2.1'   , ( 12,  0,  3 ) , 'eta_{j2}' ),
+#         'softjet_0j_btotal_jeteta1' : ('fabs(jeteta1)' , 'bveto-mu' ,  'njet == 0'                                        , ( 12,  0,  3 ) , 'eta_{j1}' ),
         'softjet_0j_btag_jeteta1'   : ('fabs(jeteta1)' , 'bveto-mu' ,  'njet == 0 && jettche1 >  2.1'                     , ( 12,  0,  3 ) , 'eta_{j1}' ),
-        'softjet_0j_bveto_jeteta1'  : ('fabs(jeteta1)' , 'bveto-mu' ,  'njet == 0 && jettche1 <= 2.1'                     , ( 12,  0,  3 ) , 'eta_{j1}' ),
+#         'softjet_0j_bveto_jeteta1'  : ('fabs(jeteta1)' , 'bveto-mu' ,  'njet == 0 && jettche1 <= 2.1'                     , ( 12,  0,  3 ) , 'eta_{j1}' ),
 
-        'softjet_1j_btotal_jetpt2'  : ('jetpt2'        , 'bveto-mu' ,  'njet == 1 && jettche1 > 2.1'                      , ( 10, 10, 30 ) , 'pt_{j2}' ) ,
+#         'softjet_1j_btotal_jetpt2'  : ('jetpt2'        , 'bveto-mu' ,  'njet == 1 && jettche1 > 2.1'                      , ( 10, 10, 30 ) , 'pt_{j2}' ) ,
         'softjet_1j_btag_jetpt2'    : ('jetpt2'        , 'bveto-mu' ,  'njet == 1 && jettche1 > 2.1 && jettche2 >  2.1'   , ( 10, 10, 30 ) , 'pt_{j2}' ) ,
-        'softjet_1j_bveto_jetpt2'   : ('jetpt2'        , 'bveto-mu' ,  'njet == 1 && jettche1 > 2.1 && jettche2 <= 2.1'   , ( 10, 10, 30 ) , 'pt_{j2}' ) ,
-        'softjet_0j_btotal_jetpt1'  : ('jetpt1'        , 'bveto-mu' ,  'njet == 0'                                        , ( 10, 10, 30 ) , 'pt_{j1}' ) ,
+#         'softjet_1j_bveto_jetpt2'   : ('jetpt2'        , 'bveto-mu' ,  'njet == 1 && jettche1 > 2.1 && jettche2 <= 2.1'   , ( 10, 10, 30 ) , 'pt_{j2}' ) ,
+#         'softjet_0j_btotal_jetpt1'  : ('jetpt1'        , 'bveto-mu' ,  'njet == 0'                                        , ( 10, 10, 30 ) , 'pt_{j1}' ) ,
         'softjet_0j_btag_jetpt1'    : ('jetpt1'        , 'bveto-mu' ,  'njet == 0 && jettche1 >  2.1'                     , ( 10, 10, 30 ) , 'pt_{j1}' ) ,
-        'softjet_0j_bveto_jetpt1'   : ('jetpt1'        , 'bveto-mu' ,  'njet == 0 && jettche1 <= 2.1'                     , ( 10, 10, 30 ) , 'pt_{j1}' ) ,
+#         'softjet_0j_bveto_jetpt1'   : ('jetpt1'        , 'bveto-mu' ,  'njet == 0 && jettche1 <= 2.1'                     , ( 10, 10, 30 ) , 'pt_{j1}' ) ,
 
 
-        'jet_2j_btotal_jeteta2'     : ('fabs(jeteta2)' , 'bveto-mu' ,  'bveto_ip && njet == 2 && jettche1 > 2.1'                    , ( 12,  0,  3 ) , 'eta_{j2}' ),
+#         'jet_2j_btotal_jeteta2'     : ('fabs(jeteta2)' , 'bveto-mu' ,  'bveto_ip && njet == 2 && jettche1 > 2.1'                    , ( 12,  0,  3 ) , 'eta_{j2}' ),
         'jet_2j_btag_jeteta2'       : ('fabs(jeteta2)' , 'bveto-mu' ,  'bveto_ip && njet == 2 && jettche1 > 2.1 && jettche2 >  2.1' , ( 12,  0,  3 ) , 'eta_{j2}' ),
-        'jet_2j_bveto_jeteta2'      : ('fabs(jeteta2)' , 'bveto-mu' ,  'bveto_ip && njet == 2 && jettche1 > 2.1 && jettche2 <= 2.1' , ( 12,  0,  3 ) , 'eta_{j2}' ),
-        'jet_1j_btotal_jeteta1'     : ('fabs(jeteta1)' , 'bveto-mu' ,  'bveto_ip && njet == 1'                                      , ( 12,  0,  3 ) , 'eta_{j1}' ),
+#         'jet_2j_bveto_jeteta2'      : ('fabs(jeteta2)' , 'bveto-mu' ,  'bveto_ip && njet == 2 && jettche1 > 2.1 && jettche2 <= 2.1' , ( 12,  0,  3 ) , 'eta_{j2}' ),
+#         'jet_1j_btotal_jeteta1'     : ('fabs(jeteta1)' , 'bveto-mu' ,  'bveto_ip && njet == 1'                                      , ( 12,  0,  3 ) , 'eta_{j1}' ),
         'jet_1j_btag_jeteta1'       : ('fabs(jeteta1)' , 'bveto-mu' ,  'bveto_ip && njet == 1 && jettche1 >  2.1'                   , ( 12,  0,  3 ) , 'eta_{j1}' ),
-        'jet_1j_bveto_jeteta1'      : ('fabs(jeteta1)' , 'bveto-mu' ,  'bveto_ip && njet == 1 && jettche1 <= 2.1'                   , ( 12,  0,  3 ) , 'eta_{j1}' ),
+#         'jet_1j_bveto_jeteta1'      : ('fabs(jeteta1)' , 'bveto-mu' ,  'bveto_ip && njet == 1 && jettche1 <= 2.1'                   , ( 12,  0,  3 ) , 'eta_{j1}' ),
 
         # pt ratio
-        'jet_2j_btotal_jetpt1'      : ('jetpt1'        , 'bveto-mu' ,  'bveto_ip && njet == 2 && jettche2 > 2.1'                     , ( 34, 30, 200 ) , 'pt_{j2}' ) ,
+#         'jet_2j_btotal_jetpt1'      : ('jetpt1'        , 'bveto-mu' ,  'bveto_ip && njet == 2 && jettche2 > 2.1'                     , ( 34, 30, 200 ) , 'pt_{j2}' ) ,
         'jet_2j_btag_jetpt1'        : ('jetpt1'        , 'bveto-mu' ,  'bveto_ip && njet == 2 && jettche2 > 2.1 && jettche1 >  2.1'  , ( 34, 30, 200 ) , 'pt_{j2}' ) ,
-        'jet_2j_bveto_jetpt1'       : ('jetpt1'        , 'bveto-mu' ,  'bveto_ip && njet == 2 && jettche2 > 2.1 && jettche1 <= 2.1'  , ( 34, 30, 200 ) , 'pt_{j2}' ) ,
+#         'jet_2j_bveto_jetpt1'       : ('jetpt1'        , 'bveto-mu' ,  'bveto_ip && njet == 2 && jettche2 > 2.1 && jettche1 <= 2.1'  , ( 34, 30, 200 ) , 'pt_{j2}' ) ,
 
-        'jet_2j_btotal_jetpt2'      : ('jetpt2'        , 'bveto-mu' ,  'bveto_ip && njet == 2 && jettche1 > 2.1'                     , ( 34, 30, 200 ) , 'pt_{j2}' ) ,
+#         'jet_2j_btotal_jetpt2'      : ('jetpt2'        , 'bveto-mu' ,  'bveto_ip && njet == 2 && jettche1 > 2.1'                     , ( 34, 30, 200 ) , 'pt_{j2}' ) ,
         'jet_2j_btag_jetpt2'        : ('jetpt2'        , 'bveto-mu' ,  'bveto_ip && njet == 2 && jettche1 > 2.1 && jettche2 >  2.1'  , ( 34, 30, 200 ) , 'pt_{j2}' ) ,
-        'jet_2j_bveto_jetpt2'       : ('jetpt2'        , 'bveto-mu' ,  'bveto_ip && njet == 2 && jettche1 > 2.1 && jettche2 <= 2.1'  , ( 34, 30, 200 ) , 'pt_{j2}' ) ,
+#         'jet_2j_bveto_jetpt2'       : ('jetpt2'        , 'bveto-mu' ,  'bveto_ip && njet == 2 && jettche1 > 2.1 && jettche2 <= 2.1'  , ( 34, 30, 200 ) , 'pt_{j2}' ) ,
 
-        'jet_1j_btotal_jetpt1'      : ('jetpt1'        , 'bveto-mu' ,  'bveto_ip && njet == 1'                                       , ( 34, 30, 200 ) , 'pt_{j1}' ) ,
+#         'jet_1j_btotal_jetpt1'      : ('jetpt1'        , 'bveto-mu' ,  'bveto_ip && njet == 1'                                       , ( 34, 30, 200 ) , 'pt_{j1}' ) ,
         'jet_1j_btag_jetpt1'        : ('jetpt1'        , 'bveto-mu' ,  'bveto_ip && njet == 1 && jettche1 >  2.1'                    , ( 34, 30, 200 ) , 'pt_{j1}' ) ,
-        'jet_1j_bveto_jetpt1'       : ('jetpt1'        , 'bveto-mu' ,  'bveto_ip && njet == 1 && jettche1 <= 2.1'                    , ( 34, 30, 200 ) , 'pt_{j1}' ) ,
+#         'jet_1j_bveto_jetpt1'       : ('jetpt1'        , 'bveto-mu' ,  'bveto_ip && njet == 1 && jettche1 <= 2.1'                    , ( 34, 30, 200 ) , 'pt_{j1}' ) ,
 
         # secondary jet, measurement area
-        'jet_kj_btotal_jetpt2'      : ('jetpt2'        , 'bveto-mu' ,  'njet >= 1 && jettche1 > 2.1'                     , ( 39, 5, 200 ) , 'pt_{j2}' ) ,
+#         'jet_kj_btotal_jetpt2'      : ('jetpt2'        , 'bveto-mu' ,  'njet >= 1 && jettche1 > 2.1'                     , ( 39, 5, 200 ) , 'pt_{j2}' ) ,
         'jet_kj_btag_jetpt2'        : ('jetpt2'        , 'bveto-mu' ,  'njet >= 1 && jettche1 > 2.1 && jettche2 >  2.1'  , ( 39, 5, 200 ) , 'pt_{j2}' ) ,
-        'jet_kj_bveto_jetpt2'       : ('jetpt2'        , 'bveto-mu' ,  'njet >= 1 && jettche1 > 2.1 && jettche2 <= 2.1'  , ( 39, 5, 200 ) , 'pt_{j2}' ) ,
+#         'jet_kj_bveto_jetpt2'       : ('jetpt2'        , 'bveto-mu' ,  'njet >= 1 && jettche1 > 2.1 && jettche2 <= 2.1'  , ( 39, 5, 200 ) , 'pt_{j2}' ) ,
         # leading jet, application area
-        'jet_kj_btotal_jetpt1'      : ('jetpt1'        , 'bveto-mu' ,  'njet >= 0'                                       , ( 39, 5, 200 ) , 'pt_{j1}' ) ,
+#         'jet_kj_btotal_jetpt1'      : ('jetpt1'        , 'bveto-mu' ,  'njet >= 0'                                       , ( 39, 5, 200 ) , 'pt_{j1}' ) ,
         'jet_kj_btag_jetpt1'        : ('jetpt1'        , 'bveto-mu' ,  'njet >= 0 && jettche1 >  2.1'                    , ( 39, 5, 200 ) , 'pt_{j1}' ) ,
-        'jet_kj_bveto_jetpt1'       : ('jetpt1'        , 'bveto-mu' ,  'njet >= 0 && jettche1 <= 2.1'                    , ( 39, 5, 200 ) , 'pt_{j1}' ) ,
+#         'jet_kj_bveto_jetpt1'       : ('jetpt1'        , 'bveto-mu' ,  'njet >= 0 && jettche1 <= 2.1'                    , ( 39, 5, 200 ) , 'pt_{j1}' ) ,
 
 
         # secondary jet, measurement area
@@ -592,20 +684,18 @@ def doratios(analysers, imgext, prefix, opt ):
         'jet_kj_btag_jetpt1-b0','jet_kj_btag_jetpt1-b1', 'jet_kj_btag_jetpt1-b2', 'jet_kj_btag_jetpt1-b3',
     ]
 
-#     btags = [ n for n in vars if 'btag' in n]
-
-    vars = vars.fromkeys(btags)
+    vars = { i:j for i,j in vars.iteritems() if i in btags }
 
     xplots = AlienDict()
     for v,(expr,lvl,cut,bins,xaxis) in vars.iteritems():
         print '%-30s: [' % v,
         for n,a in analysers.iteritems():
             print '%s,' % n,
-            xplots[v][n] = a.views[lvl].plot('xplots_%s_%s' % (n,v), expr,extra=cut,bins=bins)
+            xplots[v][n] = a.views[lvl].plot('xplots_%s_%s' % (n,v), expr,cut,bins=bins)
             sys.stdout.flush()
         print ']'
         if opt.datamc:
-            hwwlatino.printplots(xplots[v],prefix+'xplots_%s_%s' % (lvl,v), xaxis=xaxis, label='base, %s' % cut, lumi=opt.lumi, exts=imgext)
+            hwwlatino.printplots(xplots[v],opt.prefix+'xplots_%s_%s' % (lvl,v), xaxis=xaxis, label='base, %s' % cut, lumi=opt.lumi, exts=opt.imgext)
 
     xplots.lock()
         
@@ -617,8 +707,8 @@ def doratios(analysers, imgext, prefix, opt ):
     # 
 
     commons = {
-        'imgext'     : imgext,
-        'prefix'     : prefix,
+        'imgext'     : opt.imgext,
+        'prefix'     : opt.prefix,
         'ytitle'     : 'normalised',
         'legboxsize' : 40,
     } 
@@ -729,10 +819,18 @@ def doratios(analysers, imgext, prefix, opt ):
     kwargs = dict(commons,**decorations)
     makeratio('ratio_jet_eta_1j2j_btag', xplots['jet_2j_btag_jeteta2'], xplots['jet_1j_btag_jeteta1'], **kwargs)
 
-# ---
+# _______________________________________________________________________________
 def main( opt ):
     samples = hwwlatino.samples(125,'8TeV','Data2012','SM','topestimate')
     samples = hwwlatino.samples(125,'8TeV','Data2012','SM','topplots')
+
+
+#     montecarlos = [ s for s in samples if s != 'Data' ]
+#     pseudo = []
+#     for s in samples:
+#         if s == 'Data': continue
+#         pseudo.extend(samples[s])
+#     samples['PseudoData'] = pseudo
 
     wwflow = CutFlow(wwcuts.wwcommon)
 
@@ -751,33 +849,63 @@ def main( opt ):
     topflow = CutFlow()
 
     topflow['base']     = wwflow.string()
-    topflow['bveto-mu'] = 'bveto_mu'
-    topflow['bctrl']    = 'jettche1>2.1'
-    topflow['btag']     = 'jettche2>2.1'
 
-    for n,s in samples.iteritems():
-        print '%-10s'%n,s
-    analysers = hwwlatino.makeanalysers(samples,orchard,topflow,opt.lumi)
-    print '-'*80
+    opt.imgext = ['pdf','png']
+    if opt.prefix:
+        hwwtools.ensuredir(opt.prefix)
+        opt.prefix += '/'
 
-    if not opt.nobuf:
-        for n,a in analysers.iteritems():
-            old = a.worker.entries()
-            a.bufferentries()
-            print '  ',n,':',old,'>>',a.selectedentries(),'...done'
-    
+    if opt.usejet == 'sublead':
+        topflow['bveto-mu'] = 'bveto_munj30'
+        topflow['bctrl']    = 'jettche1>2.1'
+        topflow['btag']     = 'jettche2>2.1'
 
-    print '-'*80
-    imgext = ['pdf','png']
-    prefix=''
-    if opt.out:
-        hwwtools.ensuredir(opt.out)
-        prefix = opt.out+'/'
-   
-    if opt.eff: doefficiencies( analysers, imgext, prefix, opt )
-    if opt.rat: doratios(analysers, imgext, prefix, opt )
-    if opt.dora: doraemon(analysers, imgext, prefix, opt )
+        for n,s in samples.iteritems():
+            print '%-10s'%n,s
+        analysers = hwwlatino.makeanalysers(samples,orchard,topflow,opt.lumi)
+        print '-'*80
 
+#         analysers['Data'] = analysers.pop('PseudoData')
+
+        if not opt.nobuf:
+            for n,a in analysers.iteritems():
+                old = a.worker.entries()
+                a.bufferentries()
+                print '  ',n,':',old,'>>',a.selectedentries(),'...done'
+        
+
+        print '-'*80
+       
+        if opt.eff:    doeffs_usesublead( analysers, opt )
+        if opt.rat:    doratios(analysers, opt )
+        if opt.dora:   doraemon(analysers, opt )
+
+    if opt.usejet == 'lead':
+        topflow['bveto-mu'] = 'bveto_munj30'
+        topflow['bctrl']    = 'softtche<=2.1 && jettche2>2.1'
+        topflow['btag']     = 'jettche1>2.1'
+
+        for n,s in samples.iteritems():
+            print '%-10s'%n,s
+        analysers = hwwlatino.makeanalysers(samples,orchard,topflow,opt.lumi)
+        print '-'*80
+
+        if not opt.nobuf:
+            for n,a in analysers.iteritems():
+                old = a.worker.entries()
+                a.bufferentries()
+                print '  ',n,':',old,'>>',a.selectedentries(),'...done'
+        
+
+        print '-'*80
+#         prefix=''
+#         if opt.prefix:
+#             hwwtools.ensuredir(opt.prefix)
+#             prefix = opt.prefix+'/'
+#             opt.prefix += '/'
+
+       
+        if opt.eff:  doeffs_uselead( analysers, opt )
 
 # ---
 if __name__ == '__main__':
@@ -789,7 +917,8 @@ if __name__ == '__main__':
     parser = optparse.OptionParser()
     parser.add_option('-d', '--debug'    , dest = 'debug'       , help='Debug level'            , default=0 , action='count' )
     parser.add_option('-l', '--lumi'     , dest = 'lumi'        , help='Luminosity'             , default=19.468 )
-    parser.add_option('-o', '--out'      , dest = 'out'         , help='Output'                 , default=None )
+    parser.add_option('-o', '--out'      , dest = 'prefix'      , help='Output'                 , default='' )
+    parser.add_option('--usejet'         , dest = 'usejet'      , help='What jet for measuring' , default='lead' )
     parser.add_option('--no-buff'        , dest = 'nobuf'       , help='Don\'t pre-buffer'      , action='store_true' ,default=False )
     parser.add_option('--datamc-plots'   , dest = 'datamc'      , help='print datamc-plots'     , type='int',default=False )
     parser.add_option('--eff'            , dest = 'eff'         , help='do efficiency'          , action='store_true' , default=False )
@@ -803,9 +932,12 @@ if __name__ == '__main__':
 
     import os.path
     import ROOT
+    
     shape_path = os.path.join(os.getenv('CMSSW_BASE'),'src/HWWAnalysis/ShapeAnalysis')
     print 'Shape directory is',shape_path
     ROOT.gInterpreter.ExecuteMacro(shape_path+'/macros/LatinoStyle2.C')
+
+    ROOT.gStyle.SetPaintTextFormat('2.2f')
 
     try:
         main( opt )
