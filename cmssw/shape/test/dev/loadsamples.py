@@ -26,5 +26,3 @@ topflow['base']   = wwflow.string()
 lumi = 19.468
 
 analysers = hwwlatino.makeanalysers(samples,orchard,topflow,lumi)
-
-
