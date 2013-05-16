@@ -401,12 +401,14 @@ def doeffs_uselead(analysers, opt):
     etabins        = [0.,0.75,1.5,2.8,5]
 
     divbins = True
+    cut = '(jetpt1 > 30 && jetpt2>20) && jetpt3 < 15'
+    cut = 'njet==2'
 
     # variable definitions (to be turned into plots)
     vars = {
-        '2j_jeteta1'      : ('fabs(jeteta1)'        , '(jetpt1 > 30 && jetpt2>20) && jetpt3 < 15' , ( 20,  0,  5 )              , False   , '#eta_{j1}', '' ),
+        '2j_jeteta1'      : ('fabs(jeteta1)'        , cut , ( 20,  0,  5 )              , False   , '#eta_{j1}', '' ),
         #'2j_jet_eta1-pt1' : ('fabs(jeteta1):jetpt1' , 'njet == 2' , ( hardjet_ptbins, etabins ) , divbins , 'p_{T}^{j1}', 'GeV' ) ,
-        '2j_jet_eta1-pt1' : ('fabs(jeteta1):jetpt1' , '(jetpt1 > 30 && jetpt2>20) && jetpt3 < 15' , ( hardjet_ptbins, etabins ) , divbins , 'p_{T}^{j1}', 'GeV' ) ,
+        '2j_jet_eta1-pt1' : ('fabs(jeteta1):jetpt1' , cut , ( hardjet_ptbins, etabins ) , divbins , 'p_{T}^{j1}', 'GeV' ) ,
     }
 
     bplots = vars2plots( analysers, vars, opt)

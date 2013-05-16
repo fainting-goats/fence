@@ -172,7 +172,7 @@ def applyalpha( alpha, btag ):
         # bveto estimation
         vc = ac*tc
         ve = math.sqrt((ae/ac)**2 + (te/tc)**2 )*vc if (ac!=0 and tc!=0) else 0.
-        print ','.join( str(x).ljust(20) for x in [vc,ve,ac,ae,tc,te])
+        #print ','.join( str(x).ljust(20) for x in [vc,ve,ac,ae,tc,te])
 
         # bveto = alpha*btag
         # bveto_err = ((e_alpha/alpha)**2 + (e_btag/btag)**2 )*bveto
@@ -601,7 +601,9 @@ def efftop1j2g_lead( analysers, opt ):
         #a.append('ctrl','njet==2 && bveto_munj30 && softtche<=2.1 && jettche2>2.1 && jetpt3<10')
         #a.append('ctrl','jetpt2>20 && bveto_munj30 && jettche2>2.1 && jetpt3<10')
         #a.append('ctrl','njet==2 && bveto_mu  && softtche<=2.1 && jettche2>2.1')
-        a.append('ctrl','jetpt2>20 && bveto_mu && jettche2>2.1 && jetpt3<10')
+        #a.append('ctrl','jetpt2>20 && bveto_mu && jettche2>2.1 && jetpt3<10')
+        #a.append('ctrl','njet==2 && bveto_munj30 && jettche2>2.1 && jetpt3<10')
+        a.append('ctrl','njet==2 && bveto_munj30 && jettche2>2.1')                  # classic
         a.append('tag','jettche1>2.1')
         a.bufferentries()
         print '  ',n,':',old,'>>',a.selectedentries(),'...done'
@@ -610,7 +612,9 @@ def efftop1j2g_lead( analysers, opt ):
 
     ptbins  = range(30, 70, 10) + range( 70, 150, 20) + range(150,251, 50)
     etabins = [0.,0.75,1.5,2.8,5]
-    etabins = [0.,2.8,5]
+    #etabins = [0.,2.8,5]
+    #ptbins  = [0,250]
+    #etabins = [0.,5]
 
     plots = AlienDict()
     for n,a in analysers.iteritems():
@@ -737,8 +741,8 @@ def estimation1j2g( analysers, eff, opt ):
 
     for n,a in analysers.iteritems():
         old = a.selectedentries()
-        #a.append('pre-tag','njet==1 && bveto_munj30 && softtche<=2.1')
-        a.append('pre-tag','njet==1 && bveto_mu && softtche<=2.1')
+        a.append('pre-tag','njet==1 && bveto_munj30 && softtche<=2.1')
+        #a.append('pre-tag','njet==1 && bveto_mu && softtche<=2.1')
         a.append('ctrltop','jettche1>2.1')
         a.bufferentries()
         print '  ',n,':',old,'>>',a.selectedentries(),'...done'
@@ -971,7 +975,8 @@ def efftop1j( analysers ):
     print '--Updating buffers-------'
     for n,a in analysers.iteritems():
         old = a.selectedentries()
-        a.append('ctrl','njet==2 && bveto_munj30 && softtche<=2.1 && jettche2>2.1')
+        a.append('ctrl','njet==2 && bveto_munj30 && softtche<=2.1 && jettche2>2.1')  # classic
+        #a.append('ctrl','njet==2 && bveto_munj30 && jettche2>2.1')
         a.append('tag','jettche1>2.1')
         a.bufferentries()
         print '  ',n,':',old,'>>',a.selectedentries(),'...done'
@@ -990,9 +995,8 @@ def efftop1j( analysers ):
     print 'N_B_others:', y_B
     print 'eff_ds    :', (y_data['tag']-y_B)/(y_data['ctrl']-y_A)
 
-    eff_top_1j = ((y_data['tag']-y_B)/(y_data['ctrl']-y_A)).value
-#y_data['tag'].value/y_data['ctrl'].value
-    #eff_top_1j = y_data['tag'].value/y_data['ctrl'].value
+    eff_top_1j = ((y_data['tag']-y_B)/(y_data['ctrl']-y_A)).value   # other subtraction
+    #eff_top_1j = y_data['tag'].value/y_data['ctrl'].value          # classic
     eff_top_1j_err = math.sqrt(eff_top_1j*(1-eff_top_1j)/y_data['ctrl'].value)
 
     print '-'*80
