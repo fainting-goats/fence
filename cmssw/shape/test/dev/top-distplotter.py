@@ -18,7 +18,7 @@ others = ['WW','ggWW','WJet','DYLL','DYTT','VV','Vg','VgS']
 tops   = ['ttbar','tW']
 
 # others = ['WW','ggWW','WJet','DYLL','DYTT','VV','Vg','VgS','tW']
-others = ['DYLL', 'DYTT', 'VV', 'Vg', 'VgS', 'WJet', 'WW', 'ggH', 'ggWW', 'tW', 'vbfH', 'wzttH']
+others = ['DYLL', 'DYTT', 'VV', 'Vg', 'VgS', 'WJet', 'WW', 'ggH', 'ggWW', 'tW', 'qqH', 'wzttH']
 tops   = ['ttbar']
 
 from commons import AlienDict
@@ -410,6 +410,10 @@ def doeffs_uselead(analysers, opt):
         #'2j_jet_eta1-pt1' : ('fabs(jeteta1):jetpt1' , 'njet == 2' , ( hardjet_ptbins, etabins ) , divbins , 'p_{T}^{j1}', 'GeV' ) ,
         '2j_jet_eta1-pt1' : ('fabs(jeteta1):jetpt1' , cut , ( hardjet_ptbins, etabins ) , divbins , 'p_{T}^{j1}', 'GeV' ) ,
     }
+
+    if opt.testmode:
+        testvars = ['1j_jet_eta2-pt2','1j_jeteta2']
+        vars = { i:j for i,j in vars.iteritems() if i in testvars }
 
     bplots = vars2plots( analysers, vars, opt)
 

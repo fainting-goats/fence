@@ -11,7 +11,7 @@ if __name__ == '__main__':
 
     def probe():
         print '-'*80
-        pad = ROOT.gPad
+        pad = ROOT.gPad.func()
         pw = pad.GetWw()*pad.GetWNDC()
         ph = pad.GetWh()*pad.GetHNDC()
 
@@ -32,14 +32,14 @@ if __name__ == '__main__':
         dummy.Draw()
         ROOT.SetOwnership(dummy,False)
         print '-'*80
-    
-    c = Canvas(2,3)
+
+    c = Canvas(minsize = (0,0))
 
     axsty = {
-    'labelfamily'       : 44,
+    'labelfamily'       : 4,
     'labelsize'         : 20,
     'labeloffset'       : 5,
-    'titlefamily'       : 44,
+    'titlefamily'       : 4,
     'titlesize'         : 20,
     'titleoffset'       : 50,
     'ticklength'        : 100
@@ -49,12 +49,12 @@ if __name__ == '__main__':
     nolabs['labelsize'] = 0
     nolabs['titlesize'] = 0
 
-    p0 = Pad('p0',200,500, margins=(20,80,80,20), xaxis = axsty,  yaxis = axsty, align=('l','b')  )
+    p0 = Pad('p0',500,200, margins=(60,60,60,60), xaxis = axsty,  yaxis = axsty, align=('l','m')  )
     p1 = Pad('p1',500,500, margins=(80,20,20,20), xaxis = nolabs, yaxis = axsty )
     p2 = Pad('p2',500,200, margins=(80,20,20,20), xaxis = nolabs, yaxis = axsty )
     p3 = Pad('p3',500,200, margins=(80,20,20,80), xaxis = axsty,  yaxis = axsty )
     p4 = Pad('p4',200,200, margins=(20,80,20,80), xaxis = axsty,  yaxis = axsty )
-    p5 = Pad('p5',200,200, margins=(20,80,80,20), xaxis = nolabs, yaxis = axsty, align=('l','b') )
+    p5 = Pad('p5',200,200, margins=(20,80,80,20), xaxis = nolabs, yaxis = axsty, align=('l','m') )
     p1._xaxis['label-size'] = 0.0
     p2._xaxis['label-size'] = 0.0
 #     p3._xaxis['title-offset'] = 2.5
@@ -70,6 +70,7 @@ if __name__ == '__main__':
     tc = c.makecanvas()
     tc.SetName('aaa')
 
+    p5.SetFillColor(ROOT.kRed)
 
     bins = 10
     hdummy = ROOT.TH1F('dummy','',bins,0,bins)
@@ -147,16 +148,39 @@ if __name__ == '__main__':
 #     d0.GetXaxis().SetTitle('x-axis')
 #     d0.Draw('Y+')
 
+    pad = c.get(1,0)
+    pad.cd()
+
+    hdummy = ROOT.TH1D("pippo","pippo;topolino;paperino",10,0,1)
+    hdummy.Draw()
+
+
+
+
+
     c.applystyle()
+    c.SetFillColor(ROOT.kOrange)
+    #p0.SetFillStyle(0)
+    #p1.SetFillStyle(0)
+    #p2.SetFillStyle(0)
+    #p3.SetFillStyle(0)
+    #p4.SetFillStyle(0)
+    #p5.SetFillStyle(0)
 
 #     tc.ls()
     ROOT.gSystem.ProcessEvents()
-    
+
 
 #     tc.Print('des.png')
     tc.Print('des.pdf')
     tc.Print('des.png')
 
+    tc.SetCanvasSize(tc.GetWw()/2,tc.GetWh()/2)
+    tc.Modified()
+    tc.Update()
+    tc.Print('des_small.pdf')
+    tc.Print('des_small.png')
 
 
-        
+
+
