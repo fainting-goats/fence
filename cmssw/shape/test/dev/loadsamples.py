@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+import sys
+sys.argv.append('-b')
+
 import hwwlatino
 
 from hwwinfo2g import wwnamedcuts as wwcuts

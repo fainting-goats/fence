@@ -175,6 +175,10 @@ if __name__ == '__main__':
     tc.Print('des.pdf')
     tc.Print('des.png')
 
+    ROOT.gStyle.SetPaperSize(200,240)
+    tc.Print('des_paper.pdf')
+    tc.Print('des_paper.png')
+
     tc.SetCanvasSize(tc.GetWw()/2,tc.GetWh()/2)
     tc.Modified()
     tc.Update()
