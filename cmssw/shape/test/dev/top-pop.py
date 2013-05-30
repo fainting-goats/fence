@@ -3,7 +3,7 @@
 import HWWAnalysis.Misc.odict as odict
 #from ginger.analysis import TreeAnalyser,Cut,CutFlow,Latino,Sample
 from ginger.analysis import CutFlow
-from ginger.tree import Yield
+from ginger.core import ValErr,Yield
 from hwwinfo2g import wwnamedcuts as wwcuts
 import hwwlatino
 import ROOT
@@ -21,6 +21,7 @@ from HWWAnalysis.Misc.ROOTAndUtils import TStyleSentry,PadPrinter,Tee
 
 from ginger.plotter import H1RatioPlotter
 from ginger.painter import Canvas,Pad,Legend,EmbedPad
+from ginger.filters import UnderOverTucker
 
 # move somewhere safe
 from commons import AlienDict
@@ -81,7 +82,7 @@ def thsum( plots, newname, processes ):
 #     print plots
 #     print newname
 #     print processes
-    if not processes: raise ValueError('Processes is emtty!')
+    if not processes: raise ValueError('Processes is empty!')
 
     hnew = plots[processes[0]].Clone(newname)
     hnew.Reset()
@@ -99,13 +100,13 @@ def th2yield( h, binx=None, biny=None ):
 
 #_______________________________________________________________________
 def extrtop(eff,yldtag,yldbkg):
-    eff_val, eff_err = eff
+    #eff_val, eff_err = eff
 
     yldsub = yldtag-yldbkg
-    val = yldsub.value * (1-eff_val)/eff_val;
+    val = yldsub.value * (1-eff.value)/eff.value;
     err = math.sqrt(
-        ( yldsub.value * eff_err / eff_val**2)**2 +
-        ( (1-eff_val)/eff_val * yldbkg.error)**2
+        ( yldsub.value * eff.error / eff.value**2)**2 +
+        ( (1-eff.value)/eff.value * yldbkg.error)**2
     )
 #     err = math.sqrt(
 #         ( yldsub.value * eff_err / eff_val**2)**2 +
@@ -218,76 +219,6 @@ def th2slices( th2, drawopt='',**opts ):
     c.parent = hratio
     return c
 
-#----
-class UnderOverTucker(object):
-    def __init__(self):
-        pass
-    @staticmethod
-    def _tuckbin(p,frombin,tobin):
-        '''
-        move the content of bin 'frombin' to bin 'tobin'.
-        '''
-        #print frombin,tobin,':',p.GetAt(frombin),p.GetAt(tobin),'=',
-        sumw2 = p.GetSumw2()
-        # bincontent
-        p.SetAt (p.GetAt (frombin)+p.GetAt (tobin),tobin)
-        p.SetAt (0.,frombin)
-
-        # sum of weights
-        if p.GetSumw2N() != 0:
-            sumw2.SetAt(sumw2.GetAt(frombin)+sumw2.GetAt(tobin),tobin)
-            sumw2.SetAt(0.,frombin)
-
-        #print p.GetAt(tobin)
-
-    def __call__(self,p):
-        # TH1 histograms
-        if p.GetDimension() == 1:
-            nBins = h.GetNbinsX()
-            entries = h.GetEntries()
-            underFlow = h.GetBinContent(0)
-            overFlow  = h.GetBinContent(nBins+1)
-            bin1      = h.GetBinContent(1)
-            binN      = h.GetBinContent(nBins)
-
-            h.SetAt(0.,0)
-            h.SetAt(underFlow+bin1,1)
-            h.SetAt(overFlow+binN, nBins)
-            h.SetAt(0.,nBins+1,)
-        elif p.GetDimension() == 2:
-            nx    = p.GetNbinsX()
-            ny    = p.GetNbinsY()
-            entries = p.GetEntries()
-
-            #print 'tucking',p.GetName(),nx,ny
-            #print 'xsscan'
-            # x-scan to tuck in the over/underflows
-            for i in xrange(nx+2):
-                bu = p.GetBin(i,0)
-                b1 = p.GetBin(i,1)
-                self._tuckbin(p,bu,b1)
-            for i in xrange(nx+2):
-                bn = p.GetBin(i,ny)
-                bo = p.GetBin(i,ny+1)
-                self._tuckbin(p,bo,bn)
-
-            #print 'yscan'
-            # y-scan to tuck in the over/underflows
-            for j in xrange(ny+2):
-                bu = p.GetBin(0   ,j)
-                b1 = p.GetBin(1   ,j)
-                self._tuckbin(p,bu,b1)
-
-            for j in xrange(ny+2):
-                bn = p.GetBin(nx  ,j)
-                bo = p.GetBin(nx+1,j)
-
-                self._tuckbin(p,bo,bn)
-
-        elif p.GetDimension() == 3:
-            pass
-        else:
-            raise ValueError('Don\' know about histograms with dimension '+str(p.GetDimension()))
 
 #_______________________________________________________________________
 #   ______               __  ___      _
@@ -331,7 +262,7 @@ def topestimate( opt ):
     del wwflow['bveto_ip']
     wwflow['ptll'] = 'ptll>45'
 
-    print '------------------------------'
+    print '-'*80
     for n,c in wwflow.iteritems():
         print '%-30s: %s'% (n,c)
 
@@ -355,6 +286,28 @@ def topestimate( opt ):
             a.bufferentries()
             print '  ',n,':',a.entries(),'>>',a.selectedentries(),'...done'
 
+    # are there further options to implement:
+    # cuts as ABCD(mu): a dictionary of cuts for the standard regions
+    # it's another story for the definitions of tops and others, because they
+    # change between estimation and
+    abcd1j = {}
+    abcd1j['A']   = 'njet==2 && bveto_munj30 && softtche<=2.1 && jettche2>2.1'
+    abcd1j['B']   = 'jettche1>2.1'
+    abcd1j['C']   = 'njet==1 && bveto_munj30 && softtche<=2.1'
+    abcd1j['D']   = 'jettche1>2.1 '
+    abcd1j['C-D'] = 'nbjettche==0'
+    abcd1j['mu']  = 'bveto_mu'
+
+    abcd1j_mu = {}
+    abcd1j_mu['A']   = 'njet==2 && bveto_mu && softtche<=2.1 && jettche2>2.1'
+    abcd1j_mu['B']   = 'jettche1>2.1'
+    abcd1j_mu['C']   = 'njet==1 && bveto_mu && softtche<=2.1'
+    abcd1j_mu['D']   = 'jettche1>2.1 '
+    abcd1j_mu['C-D'] = 'nbjettche==0'
+    abcd1j_mu['mu']  = 'bveto_mu'
+
+    # select what ABCD definition to use
+    regions = abcd1j_mu
 
     if opt.chan in ['0j','all']:
         eff0j = efftop0j( copy.deepcopy(analysers) )
@@ -363,16 +316,16 @@ def topestimate( opt ):
             estimation0j( copy.deepcopy(analysers), eff0j )
 
     if opt.chan in ['1j','all']:
-        eff1j = efftop1j( copy.deepcopy(analysers) )
+        eff1j = efftop1j( copy.deepcopy(analysers), regions )
     #     eff1j = (0.647059, 0.004662)
         if opt.estimate:
-            estimation1j( copy.deepcopy(analysers), eff1j )
+            estimation1j( copy.deepcopy(analysers), eff1j, regions )
 
     if opt.chan in ['1j2g_lead','all']:
-        eff1j = efftop1j2g_lead( copy.deepcopy(analysers), opt )
+        eff1j = efftop1j2g_lead( copy.deepcopy(analysers), regions, opt )
     #     eff1j = (0.647059, 0.004662)
         if opt.estimate:
-            estimation1j2g( copy.deepcopy(analysers), eff1j, opt )
+            estimation1j2g( copy.deepcopy(analysers), eff1j, regions, opt )
 
     if opt.chan in ['1j2g_sublead','all']:
         eff1j = efftop1j2g_sublead( copy.deepcopy(analysers), opt )
@@ -512,7 +465,7 @@ def efftop0j( analysers ):
     print 'eff_top %f +/- %f ' % ( eff_top_0j,eff_top_0j_err )
     print '-'*80
 
-    return (eff_top_0j, eff_top_0j_err)
+    return ValErr(eff_top_0j, eff_top_0j_err)
 
 
 #_______________________________________________________________________
@@ -693,7 +646,7 @@ def efftop1j2g_sublead( analysers, opt ):
     return eff_ds, eff_mc
 
 #_______________________________________________________________________
-def efftop1j2g_lead( analysers, opt ):
+def efftop1j2g_lead( analysers, regions, opt ):
     '''
     Measure the top-tag efficiency for the 1j bin case (pt > 30 GeV)
     '''
@@ -703,33 +656,34 @@ def efftop1j2g_lead( analysers, opt ):
         others = ['DYLL', 'DYTT', 'VV', 'Vg', 'VgS', 'WJet', 'WW', 'ggH', 'ggWW', 'qqH', 'wzttH']
         tops   = ['Top']
     else:
-        # proper tW subtracion
-        others = ['DYLL', 'DYTT', 'VV', 'Vg', 'VgS', 'WJet', 'WW', 'ggH', 'ggWW', 'tW', 'qqH', 'wzttH']
-        tops   = ['ttbar']
-        # replicate the classic selection
-        tops   = ['ttbar','tW']
-        others = ['DYLL', 'DYTT', 'VV', 'Vg', 'VgS', 'WJet', 'WW', 'ggH', 'ggWW', 'qqH', 'wzttH']
-        # not even subtracting others
-        others = []
+        if   opt.mcsub == 0:
+            # classic set
+            tops   = ['ttbar','tW','DYLL', 'DYTT', 'VV', 'Vg', 'VgS', 'WJet', 'WW', 'ggH', 'ggWW', 'qqH', 'wzttH']
+            others = []
+        elif opt.mcsub == 1:
+            # classic + mc subtraction
+            tops   = ['ttbar','tW']
+            others = ['DYLL', 'DYTT', 'VV', 'Vg', 'VgS', 'WJet', 'WW', 'ggH', 'ggWW', 'qqH', 'wzttH']
+        elif opt.mcsub == 2:
+            # mc & tW subtraction
+            tops   = ['ttbar']
+            others = ['DYLL', 'DYTT', 'VV', 'Vg', 'VgS', 'WJet', 'WW', 'ggH', 'ggWW', 'tW', 'qqH', 'wzttH']
+        else:
+            raise ValueError('What\'s this shit? '+opt.mcsub)
 
     # drop the analyzers which are not needed
     analysers = odict.OrderedDict([ (n,a) for n,a in analysers.iteritems() if n in (tops+others+['Data']) ])
 
     # specific cuts
     cuts = CutFlow()
-    #cuts['A'] = 'njet==2 && bveto_munj30 && softtche<=2.1 && jettche2>2.1 && ( njet <= 1 || (bveto_ip && njet >= 2) ) && jettche3<=2.1 && jettche4<=2.1'
-    #cuts['A'] = 'njet==2 && bveto_munj30 && softtche<=2.1 && jettche2>2.1'
-    #cuts['A'] = 'njet==2 && bveto_munj30 && softtche<=2.1 && jettche2>2.1 && jetpt3<10'
-    #cuts['A'] = 'jetpt2>20 && bveto_munj30 && jettche2>2.1 && jetpt3<10'
-    #cuts['A'] = 'njet==2 && bveto_mu  && softtche<=2.1 && jettche2>2.1'
-    #cuts['A'] = 'jetpt2>20 && bveto_mu && jettche2>2.1 && jetpt3<10'
-    #cuts['A'] = 'njet==2 && bveto_munj30 && jettche2>2.1 && jetpt3<10'
-    cuts['A'] = 'njet==2 && bveto_munj30 && softtche<=2.1 && jettche2>2.1' # classic
-    #cuts['A'] = 'njet==2 && bveto_munj30 && softtche<=2.1 && jettche2>2.1 && jettche1 > softtche'
-    cuts['B'] = 'jettche1>2.1'
+    cuts['A'] = regions['A']
+    cuts['B'] = regions['B']
+
+    # print the cuts because it's nice
     print '--1j cuts--'.ljust(80,'-')
     print '\n'.join(['%-30s: %s'% i for i in cuts.iteritems()])
 
+    # and we want to tuck the under and overflows in
     uo = UnderOverTucker()
 
     print '--Updating buffers--'.ljust(80,'-')
@@ -738,7 +692,7 @@ def efftop1j2g_lead( analysers, opt ):
         a.update(cuts)
         a.bufferentries()
         # and tuck in underflow/overflows by default
-        a._plotprocs.append(uo)
+        a.filters.append(uo)
         print '  ',n,':',old,'>>',a.selectedentries(),'...done'
 
     print '-'*80
@@ -823,10 +777,15 @@ def efftop1j2g_lead( analysers, opt ):
 
     for t in tops:
         test_t = plots['A'][t].Clone('test_'+t)
-        test_t.Scale(1/test_t.Integral())
-        test_t.Multiply(eff_tops[t])
-        print 'eff_%s :' %t, th2yield(test_t)
+        if test_t.Integral() == 0:
+            eff_t = Yield()
+        else:
+            test_t.Scale(1/test_t.Integral())
+            test_t.Multiply(eff_tops[t])
+            eff_t = th2yield(test_t)
+        print 'eff_%s :' %t, eff_t
         del test_t
+
 
     nA_ds = th2yield(plt_A_ds)
     nB_ds = th2yield(plt_B_ds)
@@ -892,18 +851,10 @@ def efftop1j2g_lead( analysers, opt ):
             canvases[0,2] = th2slices(eff_ds,   scalemax=1.2, ltitle='efficiency (ds)', **styleeff )
             canvases[1,2] = th2slices(eff_mc,   scalemax=1.2, ltitle='efficiency (mc)', **styleeff )
 
-            #import pdb
-            #pdb.set_trace()
-
             for i,t in enumerate(tops):
                 canvases[i+2,0] = th2slices(plots['A'][t], scalemax=1.5, ltitle='A region (%s)' % t, **style)
                 canvases[i+2,1] = th2slices(plots['B'][t], scalemax=1.5, ltitle='B region (%s)' % t, **style)
                 canvases[i+2,2] = th2slices(eff_tops[t],   scalemax=1.2, ltitle='efficiency (%s)' % t, **styleeff)
-                print 't',t
-
-            #canvases[1,1] = th2slices(eff_mc, yrange=mm_BA_mc, ltitle='efficiency (mc)', **styleeff )
-            #for i,(t,p) in enumerate(eff_tops.iteritems()):
-                #canvases[i+2,1] = th2slices(p, yrange=mm_BA_mc,ltitle='efficiency (%s)' % t, **styleeff)
 
             padstoprint = {
                     'yield_ds_A':(0,0),
@@ -934,13 +885,14 @@ def efftop1j2g_lead( analysers, opt ):
     return eff_ds, eff_mc
 
 #_______________________________________________________________________
-def estimation1j2g( analysers, eff, opt ):
+def estimation1j2g( analysers, eff, regions,  opt ):
     # sanity check
     # note: the ctrl region contains both ttbar and tW, therefore tW goes in tops and not in ttbar
     others = ['DYLL', 'DYTT', 'VV', 'Vg', 'VgS', 'WJet', 'WW', 'ggH', 'ggWW', 'qqH', 'wzttH']
     tops   = ['tW', 'ttbar']
     #others = ['DYLL', 'DYTT', 'VV', 'Vg', 'VgS', 'WJet', 'WW', 'ggH', 'ggWW', 'qqH', 'wzttH','tW']
     #tops   = ['ttbar']
+
     # insure a proper subtraction
     assert( set(analysers.iterkeys()) == set(others+tops+['Data']) )
 
@@ -948,13 +900,13 @@ def estimation1j2g( analysers, eff, opt ):
 
     # specific cuts
     cuts = CutFlow()
-    cuts['C'] = 'njet==1 && bveto_munj30 && softtche<=2.1' # classic
-   #cuts['C'] = 'njet==1 && bveto_mu && softtche<=2.1'
-    cuts['D'] = 'jettche1>2.1'
+    cuts['C'] = regions['C']
+    cuts['D'] = regions['D']
 
     print '--1j cuts--'.ljust(80,'-')
     print '\n'.join(['%-30s: %s'% i for i in cuts.iteritems()])
 
+    # tuck under and overflows in
     uo = UnderOverTucker()
 
     print '---Updating buffers-'.ljust(80,'-')
@@ -962,7 +914,7 @@ def estimation1j2g( analysers, eff, opt ):
         old = a.selectedentries()
         a.update(cuts)
         a.bufferentries()
-        a._plotprocs.append(uo)
+        a.filters.append(uo)
         print '  ',n,':',old,'>>',a.selectedentries(),'...done'
     print '- buffering complete'
 
@@ -996,8 +948,10 @@ def estimation1j2g( analysers, eff, opt ):
             plots[c][n] = h
 
         # add the bveto plots, for later
-#         plots['bveto'][n] = a.views['C'].plot(n+'_etapt','fabs(jeteta1):jetpt1',cut='bveto_ip && bveto_mu && nbjettche==0',bins=(ptbins,etabins))
-        plots['bveto'][n] = a.views['C'].plot(n+'_etapt','fabs(jeteta1):jetpt1',cut='nbjettche==0',bins=(ptbins,etabins))
+        p = a.views['C'].plot(n+'_etapt','fabs(jeteta1):jetpt1',cut=regions['C-D'],bins=(ptbins,etabins))
+        # tuck under and overflows in
+        uo(p)
+        plots['C-D'][n] = p
         sys.stdout.flush()
 
     plots.lock()
@@ -1029,41 +983,46 @@ def estimation1j2g( analysers, eff, opt ):
         plt_D_ds.SetAt(0,i)
         plt_D_ds.SetBinError(i,0)
 
+    # plots of alpha factors
     alpha_ds = eff2alpha( eff_ds, 'alpha_ds' )
     alpha_mc = eff2alpha( eff_mc, 'alpha_mc' )
 
-    bveto_ds = applyalpha( alpha_ds, plt_D_ds)
-    bveto_ds.SetTitle('WW-lvl t#bar{t}+tW estimate [data-mc_{other}]')
+    # applied to the b-tagged region
+    plt_CD_ds = applyalpha( alpha_ds, plt_D_ds)
+    plt_CD_ds.SetTitle('WW-lvl t#bar{t}+tW estimate [data-mc_{other}]')
 
-    bveto_mc = applyalpha( alpha_mc, plt_D_mc)
-    bveto_mc.SetTitle('WW-lvl t#bar{t}+tW estimate [mc_{top}]')
+    plt_CD_mc = applyalpha( alpha_mc, plt_D_mc)
+    plt_CD_mc.SetTitle('WW-lvl t#bar{t}+tW estimate [mc_{top}]')
 
-    bveto_mc_topwwlvl = thsum(plots['bveto'],'bveto_mc',tops)
-    bveto_mc_topwwlvl.SetTitle('top mc, WW-level yield [bveto,mc_{top}]')
+    # while extracting the yield in the CD region directly
+    plt_CD_mc_topwwlvl = thsum(plots['C-D'],'plt_CD_mc',tops)
+    plt_CD_mc_topwwlvl.SetTitle('top mc, WW-level yield [C-D,mc_{top}]')
 
-    beta= th2yield(plt_C_ds, biny=(neta,neta))/th2yield(plt_C_ds, biny=(1,neta-1))
+    # so this is the transfer factor calculated on the mc from eta 0-2.8 -> 0.5
+    beta= th2yield(plt_C_mc, biny=(neta,neta))/th2yield(plt_C_mc, biny=(1,neta-1))
     print '-'*80
     print 'beta',beta
     print '-'*80
 
-    y_btag_ds  = th2yield(plt_D_ds)
-    y_bveto_ds = th2yield(bveto_ds)
+    y_plt_D_ds  = th2yield(plt_D_ds)
+    y_plt_CD_ds = th2yield(plt_CD_ds)
 
     print '1 --D yields [0,5]--'.ljust(80,'-')
     print '[raw]   '.ljust(15), th2yield(plots['D']['Data'])
     print '[others]'.ljust(15), th2yield(thsum(plots['D'],'pretag_others',others))
-    print '[ds]    '.ljust(15), y_btag_ds
+    print '[ds]    '.ljust(15), y_plt_D_ds
     for s in tops:
         print ('['+s+']').ljust(15), th2yield(plots['D'][s])
     print '[mc]'.ljust(15), th2yield(plt_D_mc)
     print '2 --C-D yields [0,2.8]--'.ljust(80,'-')
-    print '[ds]'.ljust(15), y_bveto_ds
+    print '[ds]'.ljust(15), y_plt_CD_ds
+    print '[mc]'.ljust(15), th2yield(plt_CD_mc_topwwlvl,biny=(1,neta-1))
     print '3 --C yields [0,5]--'.ljust(80,'-')
-    print '[est,ds]'.ljust(15), (y_btag_ds+y_bveto_ds)*(1+beta)
+    print '[est,ds]'.ljust(15), (y_plt_D_ds+y_plt_CD_ds)*(1+beta)
     print '[puremc]'.ljust(15), th2yield(plt_C_mc)
     print '4 --C-D yields [0,5]--'.ljust(80,'-')
-    print '[est,ds]'.ljust(15), beta*y_btag_ds+(1+beta)*y_bveto_ds
-    print '[puremc]'.ljust(15), th2yield(bveto_mc_topwwlvl)
+    print '[est,ds]'.ljust(15), beta*y_plt_D_ds+(1+beta)*y_plt_CD_ds
+    print '[puremc]'.ljust(15), th2yield(plt_CD_mc_topwwlvl)
     print '-'*80
 
 
@@ -1075,7 +1034,7 @@ def estimation1j2g( analysers, eff, opt ):
             thsameminmax( plt_C_ds, plt_C_mc )
             thsameminmax( plt_D_ds, plt_D_mc )
             thsameminmax( alpha_ds, alpha_mc, max=2. )
-            thsameminmax( bveto_ds,bveto_mc,bveto_mc_topwwlvl )
+            thsameminmax( plt_CD_ds,plt_CD_mc,plt_CD_mc_topwwlvl )
 
             plt_DC_mc = plt_D_mc.Clone('plt_DC_mc')
             plt_DC_mc.SetTitle('C/D regions vs p_{T}')
@@ -1100,11 +1059,11 @@ def estimation1j2g( analysers, eff, opt ):
             heff_rat.SetMaximum(1.5)
             heff_rat.SetMinimum(0.5)
 
-            bveto_mc_rat = bveto_mc_topwwlvl.Clone('rat')
-            bveto_mc_rat.SetTitle('Closure: mc_{top}^{est}/mc_{top}^{ww-lvl}')
-            bveto_mc_rat.Reset()
-            bveto_mc_rat.Divide(bveto_mc,bveto_mc_topwwlvl)
-            bveto_mc_rat.Draw('e text45 colz')
+            plt_CD_mc_rat = plt_CD_mc_topwwlvl.Clone('rat')
+            plt_CD_mc_rat.SetTitle('Closure: mc_{top}^{est}/mc_{top}^{ww-lvl}')
+            plt_CD_mc_rat.Reset()
+            plt_CD_mc_rat.Divide(plt_CD_mc,plt_CD_mc_topwwlvl)
+            plt_CD_mc_rat.Draw('e text45 colz')
 
             # main plotting style
             style  = {
@@ -1129,8 +1088,8 @@ def estimation1j2g( analysers, eff, opt ):
             canvases[0,0] = th2slices(plt_C_ds,  scalemax=1.5, ltitle='C region(ds)',   **style )
             canvases[1,0] = th2slices(plt_C_mc,  scalemax=1.5, ltitle='C region(mc)',   **style )
 
-            canvases[2,0] = th2slices(plt_DC_mc, scalemax=1.5, ltitle='C/D(mc)', **styleeff )
-            canvases[3,0] = th2slices(heff_rat,  yrange=(0,2), ltitle='#frac{B/A}{C/D}', **styleeff )
+            canvases[2,0] = th2slices(plt_DC_mc, scalemax=1.5, ltitle='D/C(mc)', **styleeff )
+            canvases[3,0] = th2slices(heff_rat,  yrange=(0,2), ltitle='#frac{B/A}{D/C}', **styleeff )
 
             # second row
             canvases[0,1] = th2slices(plt_D_ds,  scalemax=1.5, ltitle='D region(ds)',   **style )
@@ -1139,10 +1098,10 @@ def estimation1j2g( analysers, eff, opt ):
             canvases[3,1] = th2slices(alpha_mc, yrange=(0,2), ltitle='#alpha (mc)',    **styleeff )
 
             # third row
-            canvases[0,2] = th2slices(bveto_ds, scalemax=1.5, ltitle='C-D region(ds)', **style )
-            canvases[1,2] = th2slices(bveto_mc, scalemax=1.5, ltitle='C-D region(mc)', **style )
-            canvases[2,2] = th2slices(bveto_mc_topwwlvl, scalemax=1.5, ltitle='C-D t#bar{t}+tW', **style )
-            canvases[3,2] = th2slices(bveto_mc_rat, yrange=(0,2), ltitle='Closure: mc_{top}^{est}/mc_{top}^{ww-lvl}', **styleeff )
+            canvases[0,2] = th2slices(plt_CD_ds, scalemax=1.5, ltitle='C-D region(ds)', **style )
+            canvases[1,2] = th2slices(plt_CD_mc, scalemax=1.5, ltitle='C-D region(mc)', **style )
+            canvases[2,2] = th2slices(plt_CD_mc_topwwlvl, scalemax=1.5, ltitle='C-D t#bar{t}+tW', **style )
+            canvases[3,2] = th2slices(plt_CD_mc_rat, yrange=(0,2), ltitle='Closure: mc_{top}^{est}/mc_{top}^{ww-lvl}', **styleeff )
 
             for i,t in enumerate(tops):
                 # tops addition to first row
@@ -1176,7 +1135,7 @@ def estimation1j2g( analysers, eff, opt ):
     print 'Ok Gringo!'
 
 #_______________________________________________________________________
-def efftop1j( analysers ):
+def efftop1j( analysers, regions={} ):
     '''
     Measure the top-tag efficiency for the 1j bin case (pt > 30 GeV)
     '''
@@ -1186,12 +1145,29 @@ def efftop1j( analysers ):
         others = ['DYLL', 'DYTT', 'VV', 'Vg', 'VgS', 'WJet', 'WW', 'ggH', 'ggWW', 'qqH', 'wzttH']
         tops   = ['Top']
     else:
-        others = ['DYLL', 'DYTT', 'VV', 'Vg', 'VgS', 'WJet', 'WW', 'ggH', 'ggWW', 'tW', 'qqH', 'wzttH']
-        tops   = ['ttbar']
+        if   opt.mcsub == 0:
+            # classic set, with no subtraction
+            tops   = ['ttbar','tW','DYLL', 'DYTT', 'VV', 'Vg', 'VgS', 'WJet', 'WW', 'ggH', 'ggWW', 'qqH', 'wzttH']
+            others = []
+        elif opt.mcsub == 1:
+            # classic + mc subtraction
+            tops   = ['ttbar','tW']
+            others = ['DYLL', 'DYTT', 'VV', 'Vg', 'VgS', 'WJet', 'WW', 'ggH', 'ggWW', 'qqH', 'wzttH']
+        elif opt.mcsub == 2:
+            # mc & tW subtraction
+            tops   = ['ttbar']
+            others = ['DYLL', 'DYTT', 'VV', 'Vg', 'VgS', 'WJet', 'WW', 'ggH', 'ggWW', 'tW', 'qqH', 'wzttH']
+        else:
+            raise ValueError('What\'s this shit? '+opt.mcsub)
+        #others = ['DYLL', 'DYTT', 'VV', 'Vg', 'VgS', 'WJet', 'WW', 'ggH', 'ggWW', 'tW', 'qqH', 'wzttH']
+        #tops   = ['ttbar']
 
-        # switch this on to run in classic mode
-        others = []
-        tops   = ['ttbar','tW']
+        ## switch this on to run in classic mode
+        ## with no others
+        #others = []
+        ## and 2 samples
+        ##others = ['DYLL', 'DYTT', 'VV', 'Vg', 'VgS', 'WJet', 'WW', 'ggH', 'ggWW', 'qqH', 'wzttH']
+        #tops   = ['ttbar','tW']
 
     if  set(analysers.iterkeys()) != set(others+tops+['Data']):
         print 'Warning: not all the samples are used'
@@ -1200,10 +1176,8 @@ def efftop1j( analysers ):
     analysers = odict.OrderedDict([ (n,a) for n,a in analysers.iteritems() if n in (tops+others+['Data']) ])
 
     cuts = CutFlow()
-    cuts['A'] = 'njet==2 && bveto_munj30 && softtche<=2.1 && jettche2>2.1'  # classic
-   #cuts['A'] = 'njet==2 && bveto_mu     && softtche<=2.1 && jettche2>2.1'  # bveto_mu
-   #cuts['A'] = 'njet==2 && bveto_munj30 && jettche2>2.1'
-    cuts['B'] = 'jettche1>2.1'
+    cuts['A'] = regions['A']
+    cuts['B'] = regions['B']
     print '---1j cuts'.ljust(80,'-')
     print '\n'.join(['%-30s: %s'% i for i in cuts.iteritems()])
 
@@ -1218,30 +1192,37 @@ def efftop1j( analysers ):
     print '-'*80
     #y_data = analysers['Data'].yieldsflow()
     ys = {n:a.yieldsflow() for n,a in analysers.iteritems() }
-    es = {n:a.entriesflow() for n,a in analysers.iteritems() }
+    #es = {n:a.entriesflow() for n,a in analysers.iteritems() }
     y_data = ys['Data']
     y_A_o = sum(ys[o]['A'] for o in others) if others else Yield()
-    y_B_o = sum(ys[o]['B'] for o in others)  if others else Yield()
+    y_B_o = sum(ys[o]['B'] for o in others) if others else Yield()
 
-    print 'N_A_data  :', y_data['A'],es['Data']['A']
-    print 'N_B_data  :', y_data['B'],es['Data']['B']
+    print 'N_A_data  :', y_data['A']
+    print 'N_B_data  :', y_data['B']
 
     print 'N_A_others:', y_A_o
     print 'N_B_others:', y_B_o
-    print 'eff_ds    :', (y_data['B']-y_B_o)/(y_data['A']-y_A_o)
 
-    #eff_top_1j = ((y_data['B']-y_B_o)/(y_data['A']-y_A_o)).value   # other subtraction
-    eff_top_1j = y_data['B'].value/y_data['A'].value               # classic
-    eff_top_1j_err = math.sqrt(eff_top_1j*(1-eff_top_1j)/y_data['A'].value)
+    eff_ds_val = ((y_data['B']-y_B_o)/(y_data['A']-y_A_o)).value   # other subtraction
+    eff_ds_err = math.sqrt(eff_ds_val*(1-eff_ds_val)/y_data['A'].value) # other error subtraction?
+    eff_ds = ValErr(eff_ds_val, eff_ds_err)
+
+    y_A_t = sum(ys[t]['A'] for t in tops) if tops else Yield()
+    y_B_t = sum(ys[t]['B'] for t in tops) if tops else Yield()
+
+    eff_mc_val = (y_B_t/y_A_t).value   # other subtraction
+    eff_mc_err = math.sqrt(eff_mc_val*(1-eff_mc_val)/y_A_t.value) # other error subtraction?
+    eff_mc = ValErr(eff_mc_val, eff_mc_err)
 
     print '-'*80
-    print 'eff_top %f +/- %f ' % ( eff_top_1j,eff_top_1j_err )
+    print 'eff_ds:',eff_ds
+    print 'eff_mc:',eff_mc
     print '-'*80
 
-    return (eff_top_1j, eff_top_1j_err)
+    return eff_ds,eff_mc
 
 #_______________________________________________________________________
-def estimation1j( analysers, eff ):
+def estimation1j( analysers, eff, regions={} ):
 
     others = ['DYLL', 'DYTT', 'VV', 'Vg', 'VgS', 'WJet', 'WW', 'ggH', 'ggWW', 'qqH', 'wzttH']
     if 'Top' in analysers:
@@ -1251,16 +1232,33 @@ def estimation1j( analysers, eff ):
 
     assert( set(analysers.iterkeys()) == set(others+tops+['Data']) )
 
+    eff_ds,eff_mc = eff
+
     print '- Top estimation 1j'
 
-#     atop.append('C-D','njet == 1 && bveto_munj30 && bveto_ip && nbjettche==0')
+    # cuts for the mc closure
+    cuts = CutFlow()
+    cuts['C']   = regions['C']
+    cuts['C-D'] = regions['C-D']
+    cuts['mu']  = regions['mu']
+
+    print '--1j cuts for closure--'.ljust(80,'-')
+    print '\n'.join(['%-30s: %s'% i for i in cuts.iteritems()])
     atops = odict.OrderedDict( copy.deepcopy( [ (n,analysers[n]) for n in tops ] ) )
     for a in atops.itervalues():
-        a.append('C-D','njet == 1 && bveto_munj30 && bveto_ip && nbjettche==0')
+        a.update(cuts)
+
+    # specific cuts
+    cuts = CutFlow()
+    cuts['C'] = regions['C']
+    cuts['D'] = regions['D']
+    print '--1j cuts--'.ljust(80,'-')
+    print '\n'.join(['%-30s: %s'% i for i in cuts.iteritems()])
+    print '-'*80
 
     for n,a in analysers.iteritems():
         old = a.selectedentries()
-        a.append('D','njet==1 && bveto_munj30 && jettche1>2.1 && softtche<=2.1')
+        a.update(cuts)
         a.bufferentries()
         print '  ',n,':',old,'>>',a.selectedentries(),'...done'
     print '- buffering complete'
@@ -1283,35 +1281,65 @@ def estimation1j( analysers, eff ):
     print '-'*80
 
 
-    nctrl_mm    = analysers['Data'].yields('channel == 0')
-    nctrl_ee    = analysers['Data'].yields('channel == 1')
-    nctrl_em    = analysers['Data'].yields('channel == 2')
-    nctrl_me    = analysers['Data'].yields('channel == 3')
+    #nctrl_mm    = analysers['Data'].yields('channel == 0')
+    #nctrl_ee    = analysers['Data'].yields('channel == 1')
+    #nctrl_em    = analysers['Data'].yields('channel == 2')
+    #nctrl_me    = analysers['Data'].yields('channel == 3')
 
-    print '-'*80
-    print 'tagged events in data'
-    print 'nctrl_mm   ',nctrl_mm
-    print 'nctrl_ee   ',nctrl_ee
-    print 'nctrl_em   ',nctrl_em
-    print 'nctrl_me   ',nctrl_me
-    print '-'*80
-    print 'nctrl      ',nctrl_data
-    print 'nctrl_top  ',nctrl_top
-    print 'nctrl_dy   ',nctrl_dy
-    print 'nctrl_ww   ',nctrl_ww
-    print 'nctrl_wjet ',nctrl_wjet
-    print 'nctrl_other',nctrl_other
-    print 'nctrl_bkg  ',nctrl_bkg
+    #print '-'*80
+    #print 'tagged events in data'
+    #print 'nctrl_mm   ',nctrl_mm
+    #print 'nctrl_ee   ',nctrl_ee
+    #print 'nctrl_em   ',nctrl_em
+    #print 'nctrl_me   ',nctrl_me
+    print '-- D region --'.ljust(80,'-')
+    print 'data ',nctrl_data
+    print 'top  ',nctrl_top
+    print 'dy   ',nctrl_dy
+    print 'ww   ',nctrl_ww
+    print 'wjet ',nctrl_wjet
+    print 'other',nctrl_other
+    print 'bkg  ',nctrl_bkg
 
     print 'nctrl_sub  ',nctrl_data-nctrl_bkg
 
+    y_CD_tops = sum(a.views['C-D'].yields() for a in atops.itervalues() )
+    y_mu_tops = sum(a.views['mu'].yields() for a in atops.itervalues() )
+
+    #y_CD_data = extrtop(eff,nctrl_data,nctrl_bkg)
+    y_CD_ds   = extrtop(eff_ds,nctrl_data,sum(nctrls.itervalues()))
+
+    print '-- top events in C-D--'.ljust(80,'-')
+    #print 'data :', y_CD_data
+    print 'ds :', y_CD_ds
+    print 'mc :', y_CD_tops
     print '-'*80
-    print 'top events from data :', extrtop(eff,nctrl_data,nctrl_bkg)
-    print 'top events from dataX:', extrtop(eff,nctrl_data,sum(nctrls.itervalues()))
-#     print 'top events from mc:  ', atop.yields()
-    print 'top events from mcX  : ', sum(a.yields() for a in atops.itervalues() )
+
+    eff2mu_val = y_mu_tops.value/y_CD_tops.value
+    eff2mu_err = math.sqrt(eff2mu_val*(1-eff2mu_val)/y_CD_tops.value)
+    eff2mu = ValErr(eff2mu_val,eff2mu_err)
+
+    print 'eff2mu', eff2mu
+    print '-- up to bveto_mu --'.ljust(80,'-')
+
+    #print 'data :', eff2mu*y_CD_data
+    print 'ds :', eff2mu*y_CD_ds
+    print 'mc :', y_mu_tops
+
 
     print '-'*80
+    if opt.prefix:
+        with TStyleSentry( 'LatinosStyle' ) as sentry:
+            plots_mll = {}
+            plots_dphi = {}
+            for n,a in analysers.iteritems():
+                plots_mll[n]=a.plot('mll','mll',bins=(27,30,300))
+                plots_dphi[n]=a.plot('dphill','dphill*180/pi',bins=(36,0,180))
+
+            hwwlatino.printplots(plots_mll,opt.prefix+'/stack_D_mll',xlabel='mll', units='GeV', lumi=opt.lumi, exts=['pdf','png'])
+            hwwlatino.printplots(plots_dphi,opt.prefix+'/stack_D_dphi',xlabel='dphi', units='deg', lumi=opt.lumi, exts=['pdf','png'])
+
+
 
 #_______________________________________________________________________
 #  _    ______  ______            ___     _
@@ -1620,16 +1648,17 @@ if __name__ == '__main__':
     import optparse
 
     parser = optparse.OptionParser()
-    parser.add_option('-d', '--debug'   , dest='debug'   , help='Debug level'            , default=0 , action='count' )
-    parser.add_option('-o', '--out'     , dest='prefix'  , help='out dir'                , default=None , )
+    parser.add_option('-d', '--debug'   , dest='debug'   , help='Debug level'                     , default=0 , action='count' )
+    parser.add_option('-o', '--out'     , dest='prefix'  , help='out dir'                         , default=None , )
 
-    parser.add_option('-b', '--buf'     , dest='buffer'  , help='buffer common entries'  , default=False, action='store_true' )
-    parser.add_option('-l', '--lumi'    , dest='lumi'    , help='Luminosity'             , default=19.468 )
-    parser.add_option('-c', '--chan'    , dest='chan'    , help='Channel [0j,1j,vbf,all]', default='all' )
-    parser.add_option('-C', '--closure' , dest='closure' , help='Run the closure test'   , default=False, action='store_true' )
-    parser.add_option('-T', '--onetop'  , dest='onetop'  , help='Top = ttbar+tW'         , default=False, action='store_true' )
-    parser.add_option(      '--logx2d'  , dest='logx2d'  , help='LogX in 2d'             , default=False, action='store_true' )
-    parser.add_option(      '--noest'   , dest='estimate', help='Dont\' perform estimate', default=True, action='store_false' )
+    parser.add_option('-b', '--buf'     , dest='buffer'  , help='buffer common entries'           , default=False, action='store_true' )
+    parser.add_option('-l', '--lumi'    , dest='lumi'    , help='Luminosity'                      , default=19.468 )
+    parser.add_option('-c', '--chan'    , dest='chan'    , help='Channel [0j,1j,vbf,all]'         , default='all' )
+    parser.add_option('-C', '--closure' , dest='closure' , help='Run the closure test'            , default=False, action='store_true' )
+    parser.add_option('-T', '--onetop'  , dest='onetop'  , help='Top = ttbar+tW'                  , default=False, action='store_true' )
+    parser.add_option(      '--mcsub'   , dest='mcsub'   , help='MC subtraction level (%default)' , default=2, type=int)
+    parser.add_option(      '--logx2d'  , dest='logx2d'  , help='LogX in 2d'                      , default=False, action='store_true' )
+    parser.add_option(      '--noest'   , dest='estimate', help='Dont\' perform estimate'         , default=True, action='store_false' )
     (opt, args) = parser.parse_args()
 
     if opt.prefix:

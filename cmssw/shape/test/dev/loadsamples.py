@@ -6,7 +6,7 @@ sys.argv.append('-b')
 import hwwlatino
 
 from hwwinfo2g import wwnamedcuts as wwcuts
-from ginger.analysis import CutFlow
+from ginger.analysis import CutFlow,AnalysisView
 
 orchard = '/shome/thea/HWW/work/dds/trees/top'
 
