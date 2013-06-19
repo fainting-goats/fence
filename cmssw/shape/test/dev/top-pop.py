@@ -306,8 +306,17 @@ def topestimate( opt ):
     abcd1j_mu['C-D'] = 'nbjettche==0'
     abcd1j_mu['mu']  = 'bveto_mu'
 
+    abcd1j_notag = {}
+    abcd1j_notag['A']   = 'njet==2 && bveto_munj30 && softtche<=2.1'
+    abcd1j_notag['B']   = 'jettche1>2.1'
+    abcd1j_notag['C']   = 'njet==1 && bveto_munj30 && softtche<=2.1'
+    abcd1j_notag['D']   = 'jettche1>2.1 '
+    abcd1j_notag['C-D'] = 'nbjettche==0'
+    abcd1j_notag['mu']  = 'bveto_mu'
+
     # select what ABCD definition to use
-    regions = abcd1j_mu
+    #regions = abcd1j_mu
+    regions = abcd1j_notag
 
     if opt.chan in ['0j','all']:
         eff0j = efftop0j( copy.deepcopy(analysers) )
@@ -670,6 +679,7 @@ def efftop1j2g_lead( analysers, regions, opt ):
             others = ['DYLL', 'DYTT', 'VV', 'Vg', 'VgS', 'WJet', 'WW', 'ggH', 'ggWW', 'tW', 'qqH', 'wzttH']
         else:
             raise ValueError('What\'s this shit? '+opt.mcsub)
+
 
     # drop the analyzers which are not needed
     analysers = odict.OrderedDict([ (n,a) for n,a in analysers.iteritems() if n in (tops+others+['Data']) ])
