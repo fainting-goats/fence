@@ -3,7 +3,7 @@
 import HWWAnalysis.Misc.odict as odict
 from HWWAnalysis.Misc.ROOTAndUtils import Tee
 
-outdir = 'www/test/truth_nosoft'
+outdir = 'www/test/truth_xxx'
 logpath = outdir+'/truth.log'
 tee = Tee(logpath)
 
@@ -43,6 +43,44 @@ for mc in samples.keys():
 
 analysers = hwwlatino.makeanalysers(samples,orchard,topflow,lumi)
 
+from ginger.filters import UnderOverTucker
+uo = UnderOverTucker()
+
+for a in analysers.itervalues(): a.filters.append(uo)
+import ROOT
+
+
+flavours = odict.OrderedDict([
+    ('bquarks',('abs(jetflv{0})==5' , ROOT.kOrange)),
+    ('gluons' ,('abs(jetflv{0})==21', ROOT.kRed-7)),
+    ('others' ,('abs(jetflv{0})!=5 && abs(jetflv{0})!=21',ROOT.kGreen-7)),
+])
+
+flavours = odict.OrderedDict([
+    ('bquarks','abs(jetflv1)==5'),
+    ('gluons' ,'abs(jetflv1)==21'),
+    ('others' ,'abs(jetflv1)!=5 && abs(jetflv1)!=21'),
+])
+
+ptbins  = range(30, 70, 10) + range( 70, 150, 20) + range(150,250, 50) + [250,500,1000]
+etabins = [0.,0.75,1.5,2.8,5]
+etabins = [0.,1.4,2.8,5]
+etabins = [0.,2.8,5]
+#ptbins  = range(30,300,10)#+range(300,1001,100)
+ptbins  = range(30,300,10)#+range(300,1001,100)
+#ptbins  = [30,1000]
+#etabins = [0.,2.8,5]
+
+plt = analysers['ttbar'].splitplot('pippo','jetpt2',flavours,bins=(ptbins,))
+ylds= analysers['ttbar'].splityields(flavours)
+
+for n,p in plt.iteritems():
+    print n,p.Integral()
+    print n,ylds[n]
+
+sys.exit(0)
+
+
 abcd1j = {}
 abcd1j['A']   = 'njet==2 && bveto_munj30 && softtche<=2.1 && jettche2>2.1'
 abcd1j['B']   = 'jettche1>2.1'
@@ -58,14 +96,6 @@ abcd1j_mu['C']   = 'njet==1 && bveto_mu && softtche<=2.1'
 abcd1j_mu['D']   = 'jettche1>2.1 '
 abcd1j_mu['C-D'] = 'nbjettche==0'
 abcd1j_mu['mu']  = 'bveto_mu'
-
-abcd1j_nosoft = {}
-abcd1j_nosoft['A']   = 'njet==2 && bveto_munj30 && jettche2>2.1'
-abcd1j_nosoft['B']   = 'jettche1>2.1'
-abcd1j_nosoft['C']   = 'njet==1 && bveto_munj30'
-abcd1j_nosoft['D']   = 'jettche1>2.1 '
-abcd1j_nosoft['C-D'] = 'nbjettche==0'
-abcd1j_nosoft['mu']  = 'bveto_mu'
 
 regions = abcd1j_nosoft
 
@@ -110,12 +140,6 @@ def plotregios( analysers, cuts):
 
     import ROOT
 
-    flavours = odict.OrderedDict([
-        ('bquarks',('abs(jetflv{0})==5' , ROOT.kOrange)),
-        ('cquarks',('abs(jetflv{0})==4' , ROOT.kAzure-7)),
-        ('gluons' ,('abs(jetflv{0})==21', ROOT.kRed-7)),
-        ('others' ,('abs(jetflv{0})!=5 && abs(jetflv{0}) != 4 && abs(jetflv{0})!=21',ROOT.kGreen-7)),
-    ])
 
     flavours1 = {k:v[0].format(1) for k,v in flavours.iteritems()}
     flavours2 = {k:v[0].format(2) for k,v in flavours.iteritems()}
@@ -175,5 +199,5 @@ def plotregios( analysers, cuts):
 
 import copy
 
-plotregios(copy.deepcopy(analysers),cutsAB)
-plotregios(copy.deepcopy(analysers),cutsCD)
+#plotregios(copy.deepcopy(analysers),cutsAB)
+#plotregios(copy.deepcopy(analysers),cutsCD)

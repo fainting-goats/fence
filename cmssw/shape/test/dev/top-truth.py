@@ -37,7 +37,6 @@ lumi = 19.468
 
 for mc in samples.keys():
     if mc in ['ttbar','tW']: continue
-    if mc in ['tW']: continue
 
     samples.pop(mc)
 
@@ -103,10 +102,10 @@ def plotregios( analysers, cuts):
     import ROOT
 
     flavours = odict.OrderedDict([
-        ('bquarks',('abs(jetflv{0})==5' , ROOT.kOrange)),
-        ('cquarks',('abs(jetflv{0})==4' , ROOT.kAzure-7)),
+        ('bquarks',('abs(jetflv{0})==5' , ROOT.kOrange-4)),
+        #('cquarks',('abs(jetflv{0})==4' , ROOT.kAzure-7)),
         ('gluons' ,('abs(jetflv{0})==21', ROOT.kRed-7)),
-        ('others' ,('abs(jetflv{0})!=5 && abs(jetflv{0}) != 4 && abs(jetflv{0})!=21',ROOT.kGreen-7)),
+        ('others' ,('abs(jetflv{0})!=5 && abs(jetflv{0})!=21',ROOT.kBlue-9)),
     ])
 
     flavours1 = {k:v[0].format(1) for k,v in flavours.iteritems()}
@@ -127,6 +126,7 @@ def plotregios( analysers, cuts):
                     hp = h.ProjectionX('%s_%d' % (h.GetName(),i),i,i,'e')
                     hp.SetLineWidth(2)
                     hp.SetLineColor(flavours[f][1]+1)
+                    hp.SetMarkerColor(flavours[f][1]+1)
                     hp.SetFillColor(flavours[f][1])
                     plots[c][n][f][i] = hp
 
@@ -139,7 +139,7 @@ def plotregios( analysers, cuts):
 
     i = 1
 
-    for reg in cuts.keys()+['base']:
+    for reg in cuts.iterkeys():
         for n in analysers.iterkeys():
             print ('--- '+reg+':'+n+' ').ljust(80,'-')
             ys = {f:plots[reg][n][f][i].Integral() for f in flavours.iterkeys()}
@@ -147,15 +147,14 @@ def plotregios( analysers, cuts):
             #print 'Total yield:',y_all
             print '| '+' | '.join([' '*10       ,'y_all'.rjust(10)]+         ['{0:>10}'.format(k)       for k in ys.iterkeys()   ])+' |'
             print '| '+' | '.join([reg.ljust(10),'{0:>10.1f}'.format(y_all)]+['{0:>10.4f}'.format(y/y_all) for y in ys.itervalues() ])+' |'
-            #for f,y in ys.iteritems():
-                #print f,'%.3f %%' % (100*y/y_all)
 
         for n in analysers.iterkeys():
             stack = ROOT.THStack()
             for f in flavours:
-                stack.Add(plots[reg][n][f][i])
+                stack.Add(plots[reg][n][f][i].Clone())
 
             c = ROOT.TCanvas()
+
             stack.Draw('hist')
             stack.GetXaxis().SetTitle('jetpt1')
             leg = c.BuildLegend()
@@ -163,6 +162,25 @@ def plotregios( analysers, cuts):
             leg.SetBorderSize(0)
             c.SaveAs('%s/%s_%s.pdf'% (outdir,reg,n))
             c.SaveAs('%s/%s_%s.png'% (outdir,reg,n))
+
+            fracs = ROOT.THStack()
+            hsum  = stack.GetStack().Last()
+            for f in flavours:
+                h = plots[reg][n][f][i].Clone()
+                h.Divide(hsum)
+                h.SetMarkerStyle(20)
+                fracs.Add(h)
+
+
+            fracs.SetMaximum(1.1)
+            fracs.SetMinimum(0)
+            c2 = ROOT.TCanvas()
+            c2.SetTicks()
+            c2.SetGrid()
+            fracs.Draw('e nostack')
+
+            c2.SaveAs('%s/fracs_%s_%s.pdf'% (outdir,reg,n))
+            c2.SaveAs('%s/fracs_%s_%s.png'% (outdir,reg,n))
 
 
 import copy

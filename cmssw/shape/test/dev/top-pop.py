@@ -316,7 +316,7 @@ def topestimate( opt ):
 
     # select what ABCD definition to use
     #regions = abcd1j_mu
-    regions = abcd1j_notag
+    regions = abcd1j
 
     if opt.chan in ['0j','all']:
         eff0j = efftop0j( copy.deepcopy(analysers) )
